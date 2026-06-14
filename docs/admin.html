@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>シフトメーカー（管理者用）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script>var LZString=function(){function o(o,r){if(!t[o]){t[o]={};for(var n=0;n<o.length;n++)t[o][o.charAt(n)]=n}return t[o][r]}var r=String.fromCharCode,n="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",e="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$",t={},i={compressToBase64:function(o){if(null==o)return"";var r=i._compress(o,6,function(o){return n.charAt(o)});switch(r.length%4){default:case 0:return r;case 1:return r+"===";case 2:return r+"==";case 3:return r+"="}},decompressFromBase64:function(r){return null==r?"":""==r?null:i._decompress(r.length,32,function(e){return o(n,r.charAt(e))})},compressToUTF16:function(o){return null==o?"":i._compress(o,15,function(o){return r(o+32)})+" "},decompressFromUTF16:function(o){return null==o?"":""==o?null:i._decompress(o.length,16384,function(r){return o.charCodeAt(r)-32})},compressToUint8Array:function(o){for(var r=i.compress(o),n=new Uint8Array(2*r.length),e=0,t=r.length;t>e;e++){var s=r.charCodeAt(e);n[2*e]=s>>>8,n[2*e+1]=s%256}return n},decompressFromUint8Array:function(o){if(null===o||void 0===o)return i.decompress(o);for(var n=new Array(o.length/2),e=0,t=n.length;t>e;e++)n[e]=256*o[2*e]+o[2*e+1];var s=[];return n.forEach(function(o){s.push(r(o))}),i.decompress(s.join(""))},compressToEncodedURIComponent:function(o){return null==o?"":i._compress(o,6,function(o){return e.charAt(o)})},decompressFromEncodedURIComponent:function(r){return null==r?"":""==r?null:(r=r.replace(/ /g,"+"),i._decompress(r.length,32,function(n){return o(e,r.charAt(n))}))},compress:function(o){return i._compress(o,16,function(o){return r(o)})},_compress:function(o,r,n){if(null==o)return"";var e,t,i,s={},p={},u="",c="",a="",l=2,f=3,h=2,d=[],m=0,v=0;for(i=0;i<o.length;i+=1)if(u=o.charAt(i),Object.prototype.hasOwnProperty.call(s,u)||(s[u]=f++,p[u]=!0),c=a+u,Object.prototype.hasOwnProperty.call(s,c))a=c;else{if(Object.prototype.hasOwnProperty.call(p,a)){if(a.charCodeAt(0)<256){for(e=0;h>e;e++)m<<=1,v==r-1?(v=0,d.push(n(m)),m=0):v++;for(t=a.charCodeAt(0),e=0;8>e;e++)m=m<<1|1&t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}else{for(t=1,e=0;h>e;e++)m=m<<1|t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t=0;for(t=a.charCodeAt(0),e=0;16>e;e++)m=m<<1|1&t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}l--,0==l&&(l=Math.pow(2,h),h++),delete p[a]}else for(t=s[a],e=0;h>e;e++)m=m<<1|1&t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;l--,0==l&&(l=Math.pow(2,h),h++),s[c]=f++,a=String(u)}if(""!==a){if(Object.prototype.hasOwnProperty.call(p,a)){if(a.charCodeAt(0)<256){for(e=0;h>e;e++)m<<=1,v==r-1?(v=0,d.push(n(m)),m=0):v++;for(t=a.charCodeAt(0),e=0;8>e;e++)m=m<<1|1&t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}else{for(t=1,e=0;h>e;e++)m=m<<1|t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t=0;for(t=a.charCodeAt(0),e=0;16>e;e++)m=m<<1|1&t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}l--,0==l&&(l=Math.pow(2,h),h++),delete p[a]}else for(t=s[a],e=0;h>e;e++)m=m<<1|1&t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;l--,0==l&&(l=Math.pow(2,h),h++)}for(t=2,e=0;h>e;e++)m=m<<1|1&t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;for(;;){if(m<<=1,v==r-1){d.push(n(m));break}v++}return d.join("")},decompress:function(o){return null==o?"":""==o?null:i._decompress(o.length,32768,function(r){return o.charCodeAt(r)})},_decompress:function(o,n,e){var t,i,s,p,u,c,a,l,f=[],h=4,d=4,m=3,v="",w=[],A={val:e(0),position:n,index:1};for(i=0;3>i;i+=1)f[i]=i;for(p=0,c=Math.pow(2,2),a=1;a!=c;)u=A.val&A.position,A.position>>=1,0==A.position&&(A.position=n,A.val=e(A.index++)),p|=(u>0?1:0)*a,a<<=1;switch(t=p){case 0:for(p=0,c=Math.pow(2,8),a=1;a!=c;)u=A.val&A.position,A.position>>=1,0==A.position&&(A.position=n,A.val=e(A.index++)),p|=(u>0?1:0)*a,a<<=1;l=r(p);break;case 1:for(p=0,c=Math.pow(2,16),a=1;a!=c;)u=A.val&A.position,A.position>>=1,0==A.position&&(A.position=n,A.val=e(A.index++)),p|=(u>0?1:0)*a,a<<=1;l=r(p);break;case 2:return""}for(f[3]=l,s=l,w.push(l);;){if(A.index>o)return"";for(p=0,c=Math.pow(2,m),a=1;a!=c;)u=A.val&A.position,A.position>>=1,0==A.position&&(A.position=n,A.val=e(A.index++)),p|=(u>0?1:0)*a,a<<=1;switch(l=p){case 0:for(p=0,c=Math.pow(2,8),a=1;a!=c;)u=A.val&A.position,A.position>>=1,0==A.position&&(A.position=n,A.val=e(A.index++)),p|=(u>0?1:0)*a,a<<=1;f[d++]=r(p),l=d-1,h--;break;case 1:for(p=0,c=Math.pow(2,16),a=1;a!=c;)u=A.val&A.position,A.position>>=1,0==A.position&&(A.position=n,A.val=e(A.index++)),p|=(u>0?1:0)*a,a<<=1;f[d++]=r(p),l=d-1,h--;break;case 2:return w.join("")}if(0==h&&(h=Math.pow(2,m),m++),f[l])v=f[l];else{if(l!==d)return null;v=s+s.charAt(0)}w.push(v),f[d++]=s+v.charAt(0),h--,s=v,0==h&&(h=Math.pow(2,m),m++)}}};return i}();"function"==typeof define&&define.amd?define(function(){return LZString}):"undefined"!=typeof module&&null!=module&&(module.exports=LZString);</script>
+<style>
+  :root{
+    --bg:#f4f1ea;--paper:#fffdf8;--ink:#2b2724;--muted:#8a8378;--line:#e3ddd0;
+    --accent:#d8602e;--accent-soft:#fbe9df;
+    --maru:#2f9e6f;--maru-bg:#e3f3eb;--sankaku:#d99a26;--sankaku-bg:#fbf0d8;--batsu:#c2bcb1;--batsu-bg:#efece5;
+    --weekend:#bb4d6e;--shadow:0 1px 2px rgba(43,39,36,.06),0 8px 24px rgba(43,39,36,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);
+    background-image:radial-gradient(var(--line) 1px,transparent 1px);background-size:22px 22px;
+    color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1240px;margin:0 auto;padding:28px 20px 80px}
+  h1{font-family:'Zen Maru Gothic',sans-serif;font-weight:900;font-size:30px;letter-spacing:.02em;display:flex;align-items:center;gap:12px}
+  h1 .dot{width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:var(--shadow);margin-top:18px}
+  .card h2{font-family:'Zen Maru Gothic',sans-serif;font-size:17px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .card h2 .num{background:var(--ink);color:var(--paper);width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  label.fl{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+  input,select{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink)}
+  input:focus,select:focus{outline:none;border-color:var(--accent)}
+  input[type=number]{width:72px}
+  .btn{font-family:inherit;font-weight:700;font-size:14px;padding:9px 16px;border:none;border-radius:10px;background:var(--ink);color:var(--paper);cursor:pointer;transition:transform .08s,opacity .15s}
+  .btn:hover{opacity:.9}.btn:active{transform:translateY(1px)}
+  .btn.accent{background:var(--accent)}
+  .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .btn.sm{padding:5px 10px;font-size:12px}
+  .member-tag{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);color:var(--accent);padding:6px 8px 6px 12px;border-radius:14px;font-size:13px;font-weight:500}
+  .member-tag .nm{font-weight:700}
+  .member-tag .consec{display:flex;align-items:center;gap:3px;font-size:11px;font-weight:400;color:#a55a36}
+  .member-tag .consec input{width:34px;padding:3px 4px;font-size:11px;border-radius:6px;text-align:center}
+  .member-tag button.del{border:none;background:rgba(0,0,0,.08);color:inherit;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center}
+  .grid-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;margin-top:6px}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{border:1px solid var(--line);padding:0;text-align:center;white-space:nowrap}
+  thead th{background:var(--paper);position:sticky;top:0;z-index:2;font-weight:700;padding:7px 9px}
+  .namecol{position:sticky;left:0;background:var(--paper);z-index:1;text-align:left;padding:7px 12px;font-weight:500;min-width:100px}
+  thead .namecol{z-index:3}
+  .dayhead{font-size:12px;min-width:42px}
+  .dayhead small{display:block;font-size:10px;color:var(--muted);font-weight:400}
+  .dayhead.we{color:var(--weekend)}
+  .pref-cell{cursor:pointer;font-weight:700;width:42px;height:34px;font-size:15px;user-select:none}
+  .pref-maru{color:var(--maru);background:var(--maru-bg)}
+  .pref-sankaku{color:var(--sankaku);background:var(--sankaku-bg)}
+  .pref-batsu{color:var(--batsu);background:var(--batsu-bg)}
+  .demand-input{width:46px;border:none;text-align:center;padding:6px 2px;background:transparent;font-size:13px}
+  .stat{display:flex;gap:14px;flex-wrap:wrap;margin-top:4px}
+  .stat .b{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:13px}
+  .stat .b b{font-family:'Zen Maru Gothic';font-size:16px;display:block}
+  .empty{color:var(--muted);font-size:13px;padding:20px;text-align:center}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap;align-items:center}
+  .save-note{font-size:11px;color:var(--muted)}
+  /* summary */
+  .sum-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  .sum-table th{font-size:11px;color:var(--muted);font-weight:500;padding:6px 10px;text-align:left;border-bottom:2px solid var(--line);white-space:nowrap}
+  .sum-table td{padding:6px 10px;border-bottom:1px solid #f0ece2}
+  .sum-table td.n{text-align:center;font-variant-numeric:tabular-nums}
+  .sum-table .big{font-family:'Zen Maru Gothic';font-weight:700;font-size:15px}
+  .warn{color:var(--accent);font-size:11px}
+  /* calendar */
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:6px;min-width:760px}
+  .cal-head{font-size:12px;font-weight:700;text-align:center;padding:4px 0;color:var(--muted)}
+  .cal-head.we{color:var(--weekend)}
+  .cal-cell{border:1px solid var(--line);border-radius:9px;background:var(--paper);min-height:54px;padding:4px;display:flex;flex-direction:column;gap:2px}
+  .cal-cell.we{background:#fdf7f5}
+  .cal-cell.blank{background:transparent;border:none}
+  .cal-date{font-family:'Zen Maru Gothic';font-weight:700;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+  .cal-date .cap{font-size:10px;color:var(--muted);font-weight:400}
+  .cal-date .over{color:var(--accent)}
+  .mrow{display:grid;grid-template-columns:minmax(42px,1fr) 14px 46px 14px 52px;gap:2px;align-items:center;font-size:11px;padding:2px 0;cursor:pointer;border-radius:5px}
+  .avt{font-size:10px;color:var(--accent);font-weight:700;flex:none;white-space:nowrap}
+  .avt2{font-size:10px;color:var(--accent);font-weight:700;text-align:center;white-space:nowrap;overflow:hidden}
+  .mrow .dim{color:#cdc6b8;font-weight:400}
+  .mrow .pf{text-align:center;font-weight:700;border-radius:3px}
+  .mrow .mk{text-align:center;font-weight:700}
+  .wt{min-width:0}
+  .wt .tp{display:block;width:100%}
+  .wt .tp-btn{width:100%;padding:3px 1px;font-size:10px;text-align:center}
+  /* 完成カレンダー（全幅・コンパクト・スクショ向き） */
+  .mcell{display:flex;flex-wrap:wrap;align-items:center;gap:2px;font-size:10px;padding:2px 1px;cursor:pointer;border-radius:4px;line-height:1.35}
+  .mcell.out{opacity:.4}
+  .mck{font-weight:700;flex:none;font-size:11px}
+  .mnm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+  .mnm.cmaru{color:var(--maru)}
+  .mnm.csankaku{color:var(--sankaku)}
+  .mnm.cbatsu{color:var(--batsu);font-weight:400}
+  .mtw{width:100%}
+  .mtw .tp{display:block;width:100%}
+  .mtw .tp-btn{width:100%;padding:2px 1px;font-size:9px;text-align:center}
+  .avh{width:100%;font-size:9px;color:var(--sankaku);padding-left:13px}
+  /* カレンダー各マスの5列ミニ行 */
+  .mini-row{display:grid;grid-template-columns:minmax(0,1fr) 11px 30px 12px minmax(0,1fr);gap:1px;align-items:center;font-size:9px;line-height:1.3;padding:1px 0;border-radius:2px}
+  .mini-row.miss{background:#fdf3ee}
+  .mini-row .mnm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+  .mini-row .mnm.cmaru{color:var(--maru)}.mini-row .mnm.csankaku{color:var(--sankaku)}.mini-row .mnm.cbatsu{color:var(--batsu);font-weight:400}
+  .mini-row .mpf{text-align:center;font-weight:700}
+  .mini-row .mpf.cmaru{color:var(--maru)}.mini-row .mpf.csankaku{color:var(--sankaku)}.mini-row .mpf.cbatsu{color:var(--batsu)}
+  .mini-row .mav{font-size:8px;color:var(--accent);text-align:center;overflow:hidden;white-space:nowrap}
+  .mini-row .mak{text-align:center;font-weight:700;cursor:pointer}
+  .mini-row .mwt{min-width:0;overflow:hidden;text-align:center}
+  .mini-row .mwt .tp{display:block;width:100%}
+  .mini-row .mwt .tp-btn{width:100%;padding:1px;font-size:8px}
+  .mini-row .mwt .dim,.mini-row .mav.dim{color:#cdc6b8}
+  /* 日付ブロック（縦積み・5列テーブル） */
+  .dblock{border:1px solid var(--line);border-radius:12px;background:var(--paper);margin-bottom:10px;overflow:hidden}
+  .dblock.we{background:#fdf7f5}
+  .dbhead{padding:8px 12px;font-family:'Zen Maru Gothic',sans-serif;font-weight:700;font-size:14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  .dbhead.we{color:var(--weekend)}
+  .dbhead .cap{font-size:12px;font-weight:500;color:var(--muted)}
+  .dbhead .cap.over{color:var(--accent)}
+  .dtbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+  .dtbl col.cn{width:auto}
+  .dtbl col.cp{width:34px}
+  .dtbl col.ct{width:62px}
+  .dtbl col.ca{width:34px}
+  .dtbl col.cw{width:72px}
+  .dtbl th{font-size:10px;color:var(--muted);font-weight:500;padding:5px 6px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+  .dtbl th.l{text-align:left}
+  .dtbl td{padding:4px 6px;border-bottom:1px solid #f3efe6;vertical-align:middle}
+  .dtbl tr:last-child td{border-bottom:none}
+  .dtbl td.nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dtbl td.c{text-align:center}
+  .dtbl .pf{font-weight:700;font-size:14px}
+  .dtbl .pf.pm{color:var(--maru)}.dtbl .pf.ps{color:var(--sankaku)}.dtbl .pf.px{color:var(--batsu)}
+  .dtbl .ak{font-weight:700;font-size:14px;cursor:pointer}
+  .dtbl .tcell{font-size:11px;color:var(--accent);font-weight:700;text-align:center}
+  .dtbl .tcell.dim{color:#cdc6b8;font-weight:400}
+  .dtbl tr.miss{background:#fdf3ee}
+  .dtbl .tp-btn{padding:3px 4px;font-size:10px}
+  .dtime{width:100%;border:1px solid var(--line);border-radius:6px;padding:2px 3px;font-size:11px;margin-top:3px;background:#fff;color:var(--ink)}
+  .dtime:disabled{background:#efece5;color:#c2bcb1}
+  .davt{font-size:10px;color:var(--accent);font-weight:700;text-align:center;margin-top:1px}
+  /* 時間ピッカー */
+  .tp{position:relative;display:inline-block;flex:none}
+  .tp-btn{font-family:inherit;font-size:11px;border:1px solid var(--line);border-radius:6px;padding:3px 6px;background:#fff;color:var(--muted);cursor:pointer;white-space:nowrap;line-height:1.2}
+  .tp-btn.has{color:var(--accent);font-weight:700;border-color:var(--accent)}
+  .tp-btn:disabled{background:#efece5;color:#c2bcb1;cursor:default}
+  .tp-ov{position:fixed;inset:0;z-index:999;background:rgba(20,16,12,.18)}
+  .tp-pop{position:fixed;z-index:1000;background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(43,39,36,.28);padding:14px;width:min(300px,92vw)}
+  .tp-ttl{font-size:12px;color:var(--muted);margin-bottom:10px;text-align:center}
+  .tp-wheels{position:relative;display:flex;gap:6px;align-items:center;justify-content:center;padding:0 8px}
+  .tp-band{position:absolute;top:50%;transform:translateY(-50%);height:38px;left:6px;right:6px;background:var(--accent-soft);border-radius:9px;pointer-events:none;z-index:0}
+  .tp-colon{font-size:20px;font-weight:700;color:var(--ink);z-index:1}
+  .wheel{position:relative;z-index:1;height:114px;width:74px;overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none;-ms-overflow-style:none;text-align:center}
+  .wheel::-webkit-scrollbar{display:none}
+  .wpad{height:38px}
+  .witem{height:38px;line-height:38px;scroll-snap-align:center;font-size:19px;color:#b8b1a4;cursor:pointer;font-variant-numeric:tabular-nums}
+  .witem.sel{color:var(--accent);font-weight:700}
+  .tp-actions{display:flex;justify-content:space-between;margin-top:12px;gap:8px}
+  .tp-actions button{font-family:inherit;font-size:14px;border:none;border-radius:9px;padding:9px 18px;cursor:pointer;font-weight:700}
+  .tp-actions .clr{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .tp-actions .ok{background:var(--accent);color:#fff;flex:1}
+  .mrow:hover{background:#f3efe6}
+  .mrow .mk{width:16px;text-align:center;font-weight:700;flex:none}
+  .mrow.in .nm2{font-weight:700}
+  .mrow.out{opacity:.55}
+  .mrow.out .nm2{text-decoration:none}
+  .mrow .nm2{flex:1;min-width:24px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mrow .pf{font-size:10px;flex:none}
+  .mrow .tin{width:70px;border:1px solid var(--line);border-radius:6px;padding:1px 2px;font-size:10px;flex:none}
+  .scroll-x{overflow-x:auto}
+  .modebar{display:inline-flex;gap:4px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:4px;margin-top:14px}
+  .modebar button{font-family:inherit;font-weight:700;font-size:13px;padding:7px 16px;border:none;border-radius:9px;background:transparent;color:var(--muted);cursor:pointer}
+  .modebar button.on{background:var(--accent);color:#fff}
+  .codebox{background:#f7f4ec;border:1px dashed var(--line);border-radius:10px;padding:12px;font-family:monospace;font-size:12px;word-break:break-all;line-height:1.5;max-height:120px;overflow:auto}
+  .qrwrap{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-top:12px}
+  #qrbox{background:#fff;padding:8px;border-radius:10px;border:1px solid var(--line)}
+  .imp-msg{margin-top:10px;padding:10px 14px;border-radius:10px;font-size:13px}
+  .imp-ok{background:var(--maru-bg);color:#1f6e4e}
+  .imp-ng{background:#fbe4e4;color:#a33}
+  .big-prefcell{cursor:pointer;font-weight:700;font-size:18px;user-select:none;border-radius:8px;display:flex;align-items:center;justify-content:center;height:46px}
+  ::-webkit-scrollbar{height:10px;width:10px}::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useMemo,useRef} = React;
+const store={load(){try{const r=localStorage.getItem('shiftmaker_v2');return r?JSON.parse(r):null}catch(e){return null}},save(s){try{localStorage.setItem('shiftmaker_v2',JSON.stringify(s))}catch(e){}}};
+const WD=['日','月','火','水','木','金','土'];
+const isWeekend=(dow)=>dow===5||dow===6||dow===0;            // 金土日
+const uid=()=>Math.random().toString(36).slice(2,9);
+const daysInMonth=(y,m)=>new Date(y,m,0).getDate();
+const WEIGHT={'◯':1,'△':0.5,'×':0};
+// 提出コードのエンコード/デコード（日本語対応Base64）
+const encodeSubmission=(obj)=>{try{const j=JSON.stringify(obj);return btoa(String.fromCharCode(...new TextEncoder().encode(j)));}catch(e){return '';}};
+const decodeSubmission=(str)=>{try{const j=new TextDecoder().decode(Uint8Array.from(atob(str.trim()),c=>c.charCodeAt(0)));return JSON.parse(j);}catch(e){return null;}};
+
+// ===== 共通：iPhoneタイマー風ホイール =====
+const HOURS=Array.from({length:24},(_,i)=>String(i).padStart(2,'0'));
+const MINS=['00','15','30','45'];
+const WH=38; // 1項目の高さ
+function Wheel({items,value,onChange}){
+  const ref=useRef(null);
+  const to=useRef(null);
+  useEffect(()=>{const i=items.indexOf(value);if(ref.current&&i>=0)ref.current.scrollTop=i*WH;},[]);
+  const onScroll=()=>{
+    clearTimeout(to.current);
+    to.current=setTimeout(()=>{
+      if(!ref.current)return;
+      let i=Math.round(ref.current.scrollTop/WH);
+      i=Math.max(0,Math.min(items.length-1,i));
+      ref.current.scrollTop=i*WH;
+      if(items[i]!==value)onChange(items[i]);
+    },110);
+  };
+  const tap=(it)=>{const i=items.indexOf(it);if(ref.current)ref.current.scrollTo({top:i*WH,behavior:'smooth'});onChange(it);};
+  return (
+    <div className="wheel" ref={ref} onScroll={onScroll}>
+      <div className="wpad"></div>
+      {items.map(it=><div key={it} className={"witem"+(it===value?' sel':'')} onClick={()=>tap(it)}>{it}</div>)}
+      <div className="wpad"></div>
+    </div>
+  );
+}
+
+// ===== 共通：時間選択ピッカー（タップで開く・15分刻み・決定ボタン付き） =====
+function TimePicker({value,onChange,disabled,suffix}){
+  const [open,setOpen]=useState(false);
+  const [h,setH]=useState('17');
+  const [m,setM]=useState('00');
+  const [pos,setPos]=useState({top:0,left:0});
+  const btnRef=useRef(null);
+  useEffect(()=>{if(value){const a=value.split(':');setH(a[0]);setM(a[1]);}else{setH('17');setM('00');}},[value,open]);
+  const label=value?(value+(suffix||'')):'--:--';
+  const openPicker=()=>{
+    if(disabled)return;
+    const r=btnRef.current.getBoundingClientRect();
+    const W=Math.min(300,window.innerWidth*0.92);
+    const PH=235;
+    let left=r.left; if(left+W>window.innerWidth-8)left=window.innerWidth-W-8; if(left<8)left=8;
+    let top=r.bottom+6; if(top+PH>window.innerHeight-8)top=Math.max(8,r.top-PH-6);
+    setPos({top,left});setOpen(true);
+  };
+  return (
+    <span className="tp" onClick={e=>e.stopPropagation()}>
+      <button ref={btnRef} type="button" className={"tp-btn"+(value?' has':'')} disabled={disabled}
+        onClick={()=>{open?setOpen(false):openPicker();}}>{disabled?'—':label}</button>
+      {open&&!disabled&&(<>
+        <div className="tp-ov" onClick={()=>setOpen(false)}></div>
+        <div className="tp-pop" style={{top:pos.top,left:pos.left}}>
+          <div className="tp-ttl">時刻を選択（上下にスライド・15分刻み）</div>
+          <div className="tp-wheels">
+            <div className="tp-band"></div>
+            <Wheel items={HOURS} value={h} onChange={setH}/>
+            <span className="tp-colon">:</span>
+            <Wheel items={MINS} value={m} onChange={setM}/>
+          </div>
+          <div className="tp-actions">
+            <button type="button" className="clr" onClick={()=>{onChange('');setOpen(false);}}>クリア</button>
+            <button type="button" className="ok" onClick={()=>{onChange(h+':'+m);setOpen(false);}}>決定</button>
+          </div>
+        </div>
+      </>)}
+    </span>
+  );
+}
+
+// ===== 割り当てアルゴリズム =====
+function assign(state){
+  const {year,month,members,prefs,demand}=state;
+  const dim=daysInMonth(year,month);
+  const days=[];
+  for(let d=1;d<=dim;d++){const dow=new Date(year,month-1,d).getDay();days.push({d,dow,we:isWeekend(dow)});}
+  const getPref=(mid,d)=>(prefs[mid]&&prefs[mid][d])||'×';
+  const getDemand=(d,we)=>(demand.override[d]??(we?demand.weekend:demand.weekday));
+
+  const result={};days.forEach(x=>result[x.d]=[]);
+  const report={};members.forEach(m=>report[m.id]={});
+
+  const eff={};          // 各日の有効募集人数
+  days.forEach(x=>{
+    const wishers=members.filter(m=>getPref(m.id,x.d)!=='×').length;
+    eff[x.d]=Math.min(getDemand(x.d,x.we),wishers);
+  });
+
+  const remainPool={weekday:{},weekend:{}};
+  ['weekday','weekend'].forEach(pool=>{
+    const poolDays=days.filter(x=>pool==='weekend'?x.we:!x.we);
+    const totalSlots=poolDays.reduce((s,x)=>s+eff[x.d],0);
+    // 希望ウェイト = ◯×1 + △×0.5
+    const wish={},cap={};
+    members.forEach(m=>{
+      let w=0,c=0;
+      poolDays.forEach(x=>{const p=getPref(m.id,x.d);w+=WEIGHT[p];if(p!=='×')c++;});
+      wish[m.id]=w;cap[m.id]=c;          // cap=実際に入れられる最大(◯+△の日数)
+    });
+    const totalWish=members.reduce((s,m)=>s+wish[m.id],0);
+    const ratio=totalWish>0?totalSlots/totalWish:0;
+    const target={};
+    members.forEach(m=>target[m.id]=Math.min(Math.floor(wish[m.id]*ratio),cap[m.id]));
+    let rem=totalSlots-members.reduce((s,m)=>s+target[m.id],0);
+    const order=[...members].sort((a,b)=>(wish[b.id]-wish[a.id])||(Math.random()-.5));
+    let g=0;while(rem>0&&g<9999){let placed=false;for(const m of order){if(rem<=0)break;if(target[m.id]<cap[m.id]){target[m.id]++;rem--;placed=true;}}if(!placed)break;g++;}
+    members.forEach(m=>{remainPool[pool][m.id]=target[m.id];report[m.id][pool]={maru:poolDays.filter(x=>getPref(m.id,x.d)==='◯').length,sankaku:poolDays.filter(x=>getPref(m.id,x.d)==='△').length,wish:wish[m.id],target:target[m.id]};});
+    report['_'+pool]={totalSlots,totalWish,ratio};
+  });
+
+  // 連勤チェック：dにmidを入れたとき N連勤以上になるか
+  const servedOn=(mid,d)=>(result[d]||[]).includes(mid);
+  const wouldExceed=(mid,d,N)=>{
+    if(!N||N<1)return false;
+    let len=1,p=d-1,q=d+1;
+    while(p>=1&&servedOn(mid,p)){len++;p--;}
+    while(q<=dim&&servedOn(mid,q)){len++;q++;}
+    return len>=N;                       // N連勤になる＝禁止
+  };
+  const noConsec=(mid)=>{const m=members.find(x=>x.id===mid);return m&&m.noConsec?m.noConsec:0;};
+
+  // 足りない日（希望者−募集 が小さい日）を優先して埋める
+  const daysSorted=[...days].sort((a,b)=>{
+    const sa=members.filter(m=>getPref(m.id,a.d)!=='×').length-eff[a.d];
+    const sb=members.filter(m=>getPref(m.id,b.d)!=='×').length-eff[b.d];
+    return (sa-sb)||(Math.random()-.5);
+  });
+
+  daysSorted.forEach(x=>{
+    const need=eff[x.d];if(need<=0)return;
+    const pool=x.we?'weekend':'weekday';const remain=remainPool[pool];
+    const pick=[];
+    const tryAdd=(cands)=>{
+      for(const m of cands){
+        if(pick.length>=need)break;
+        if(pick.includes(m.id))continue;
+        if(wouldExceed(m.id,x.d,noConsec(m.id)))continue;   // 連勤制約
+        pick.push(m.id);result[x.d]=pick;                    // 即反映
+        if(remain[m.id]>0)remain[m.id]--;
+      }
+    };
+    // 1) ◯希望 & 残り目標あり（残り多い順）
+    tryAdd(members.filter(m=>getPref(m.id,x.d)==='◯'&&remain[m.id]>0).sort((a,b)=>(remain[b.id]-remain[a.id])||(Math.random()-.5)));
+    // 2) ◯希望（目標達成済みでも日を埋める）
+    tryAdd(members.filter(m=>getPref(m.id,x.d)==='◯').sort(()=>Math.random()-.5));
+    // 3) △希望で補充
+    tryAdd(members.filter(m=>getPref(m.id,x.d)==='△').sort(()=>Math.random()-.5));
+    result[x.d]=pick;
+  });
+
+  return {result,report,days,getDemand,eff};
+}
+
+function App(){
+  const init=store.load()||{
+    year:new Date().getFullYear(),month:new Date().getMonth()+1,
+    members:[{id:uid(),name:'佐藤',noConsec:0},{id:uid(),name:'鈴木',noConsec:3},{id:uid(),name:'田中',noConsec:0},{id:uid(),name:'高橋',noConsec:0}],
+    prefs:{},demand:{weekday:1,weekend:2,override:{}},
+    assigned:null,manual:{},times:{},availFrom:{}
+  };
+  const [s,setS]=useState(init);
+  const [filter,setFilter]=useState('all');
+  const [viewMode,setViewMode]=useState('cal');
+  const [newName,setNewName]=useState('');
+  const [shareCode,setShareCode]=useState('');
+  const [viewerUrl,setViewerUrl]=useState(()=>{try{return localStorage.getItem('shiftmaker_viewer_url')||'';}catch(e){return '';}});
+  useEffect(()=>{try{localStorage.setItem('shiftmaker_viewer_url',viewerUrl);}catch(e){}},[viewerUrl]);
+  const [importText,setImportText]=useState(''); // 管理者の貼り付け欄
+  const [importMsg,setImportMsg]=useState(null);
+  useEffect(()=>store.save(s),[s]);
+  const set=(patch)=>setS(p=>({...p,...patch}));
+  const dim=daysInMonth(s.year,s.month);
+  const days=useMemo(()=>{const a=[];for(let d=1;d<=dim;d++){const dow=new Date(s.year,s.month-1,d).getDay();a.push({d,dow,we:isWeekend(dow)});}return a;},[s.year,s.month,dim]);
+
+  const addMember=()=>{const name=(newName||'').trim();if(!name)return;set({members:[...s.members,{id:uid(),name,noConsec:0}]});setNewName('');};
+  const delMember=(id)=>set({members:s.members.filter(m=>m.id!==id)});
+  const setConsec=(id,v)=>set({members:s.members.map(m=>m.id===id?{...m,noConsec:Math.max(0,parseInt(v)||0)}:m)});
+
+  const getPref=(mid,d)=>(s.prefs[mid]&&s.prefs[mid][d])||'×';
+  const cyclePref=(mid,d)=>{const cur=getPref(mid,d);const next=cur==='×'?'◯':cur==='◯'?'△':'×';set({prefs:{...s.prefs,[mid]:{...(s.prefs[mid]||{}),[d]:next}}});};
+  const fillRow=(mid,val)=>{const mp={...(s.prefs[mid]||{})};days.forEach(x=>mp[x.d]=val);set({prefs:{...s.prefs,[mid]:mp}});};
+
+  const setDemand=(k,v)=>set({demand:{...s.demand,[k]:Math.max(0,parseInt(v)||0)}});
+  const setOverride=(d,v)=>{const ov={...s.demand.override};if(v===''||v===null){delete ov[d];}else ov[d]=Math.max(0,parseInt(v)||0);set({demand:{...s.demand,override:ov}});};
+
+  const run=()=>set({assigned:assign(s),manual:{}});
+
+  const isIn=(d,mid)=>{if(s.manual[d]&&mid in s.manual[d])return s.manual[d][mid];return s.assigned?(s.assigned.result[d]||[]).includes(mid):false;};
+  const toggleAssign=(d,mid)=>{const dm={...(s.manual[d]||{})};dm[mid]=!isIn(d,mid);set({manual:{...s.manual,[d]:dm}});};
+  const setTime=(mid,d,v)=>set({times:{...s.times,[`${mid}-${d}`]:v}});
+  const prefClass=(p)=>p==='◯'?'pref-maru':p==='△'?'pref-sankaku':'pref-batsu';
+
+  const getAvail=(mid,d)=>(s.availFrom&&s.availFrom[mid]&&s.availFrom[mid][d])||'';
+
+  // ===== 管理者モード：提出コードの取り込み =====
+  const importCode=()=>{
+    const obj=decodeSubmission(importText);
+    if(!obj||obj.t!=='shift-pref'){setImportMsg({ok:false,text:'コードを読み取れませんでした。貼り付け内容を確認してください。'});return;}
+    const warn=(obj.y!==s.year||obj.m!==s.month)?`（注意：このコードは ${obj.y}年${obj.m}月 の希望です。現在の表は ${s.year}年${s.month}月）`:'';
+    let mid,members=s.members,added=false;
+    const exist=members.find(x=>x.name===obj.name);
+    if(exist){mid=exist.id;members=members.map(x=>x.id===mid?{...x,noConsec:obj.nc||0}:x);}
+    else{mid=uid();members=[...members,{id:mid,name:obj.name,noConsec:obj.nc||0}];added=true;}
+    const newPrefs={...s.prefs,[mid]:{...obj.p}};
+    const newAvail={...(s.availFrom||{}),[mid]:{...(obj.a||{})}};
+    set({members,prefs:newPrefs,availFrom:newAvail});
+    setImportMsg({ok:true,text:`${obj.name} さんの希望を${added?'新規に追加':'上書き反映'}しました。${warn}`});
+    setImportText('');
+  };
+
+  // ===== 配布用：共有コード（LZString圧縮）を生成 =====
+  const buildShare=()=>{
+    if(!s.assigned)return;
+    const idx={};s.members.forEach((m,i)=>{idx[m.id]=i;});
+    const C={y:s.year,m:s.month,n:s.members.map(m=>m.name),a:{},t:{},p:{},v:{}};
+    days.forEach(x=>{
+      const ins=s.members.filter(m=>isIn(x.d,m.id)).map(m=>idx[m.id]);
+      if(ins.length)C.a[x.d]=ins;
+    });
+    s.members.forEach(m=>{
+      const i=idx[m.id];
+      const pr={};days.forEach(x=>{const p=getPref(m.id,x.d);if(p!=='×')pr[x.d]=p;});if(Object.keys(pr).length)C.p[i]=pr;
+      const av={};days.forEach(x=>{const a=getAvail(m.id,x.d);if(a)av[x.d]=a;});if(Object.keys(av).length)C.v[i]=av;
+      days.forEach(x=>{if(isIn(x.d,m.id)){const t=(s.times||{})[m.id+'-'+x.d];if(t)C.t[i+'-'+x.d]=t;}});
+    });
+    setShareCode(LZString.compressToEncodedURIComponent(JSON.stringify(C)));
+  };
+  const copyText=(t)=>{if(navigator.clipboard&&t)navigator.clipboard.writeText(t);};
+  const shareLink=()=>{const u=(viewerUrl||'').trim();if(!u||!shareCode)return '';return u+(u.indexOf('#')>=0?'':'#')+shareCode;};
+
+  // 連勤違反チェック（手動調整後の最終結果を検査）
+  const consecViolation=(mid)=>{const m=s.members.find(x=>x.id===mid);const N=m&&m.noConsec?m.noConsec:0;if(!N)return false;let run=0;for(let d=1;d<=dim;d++){run=isIn(d,mid)?run+1:0;if(run>=N)return true;}return false;};
+  // 採用日数（手動反映後）
+  const adoptedCount=(mid,poolFilter)=>days.filter(x=>{if(poolFilter==='weekday'&&x.we)return false;if(poolFilter==='weekend'&&!x.we)return false;return isIn(x.d,mid);}).length;
+
+  // カレンダー週組み（月曜始まり）
+  const weeks=useMemo(()=>{
+    const first=new Date(s.year,s.month-1,1).getDay();
+    const offset=(first+6)%7; // 月=0
+    const cells=[];for(let i=0;i<offset;i++)cells.push(null);
+    days.forEach(x=>cells.push(x));
+    while(cells.length%7!==0)cells.push(null);
+    const w=[];for(let i=0;i<cells.length;i+=7)w.push(cells.slice(i,i+7));
+    return w;
+  },[s.year,s.month,days]);
+
+  return (
+    <div className="wrap">
+      <h1><span className="dot"></span>シフトメーカー<span style={{fontSize:14,color:'var(--muted)',fontWeight:400,marginLeft:6}}>管理者用</span></h1>
+      <div className="sub">希望を集めて、平日／週末を分けて平等に自動割り当て。連勤制約つき・後から手で直せます。</div>
+
+      {/* 1 基本設定 */}
+      <div className="card">
+        <h2><span className="num">1</span>基本設定</h2>
+        <div className="row">
+          <label className="fl">年<input type="number" value={s.year} onChange={e=>set({year:parseInt(e.target.value)||s.year})}/></label>
+          <label className="fl">月<select value={s.month} onChange={e=>set({month:parseInt(e.target.value)})}>{Array.from({length:12},(_,i)=>i+1).map(m=><option key={m} value={m}>{m}月</option>)}</select></label>
+          <label className="fl">平日(月〜木)の募集人数<input type="number" value={s.demand.weekday} onChange={e=>setDemand('weekday',e.target.value)}/></label>
+          <label className="fl">週末(金土日)の募集人数<input type="number" value={s.demand.weekend} onChange={e=>setDemand('weekend',e.target.value)}/></label>
+        </div>
+        <div className="hint">※ 日ごとに人数を変えたいときは、希望表の「募集人数」行で個別に上書きできます。</div>
+      </div>
+
+      {/* 2 メンバー */}
+      <div className="card">
+        <h2><span className="num">2</span>メンバー <span style={{fontSize:11,fontWeight:400,color:'var(--muted)'}}>／ 連勤禁止：「3」で3連勤を禁止（＝最大2連勤）。0＝制限なし</span></h2>
+        <div className="row" style={{gap:8}}>
+          {s.members.map(m=>(
+            <span className="member-tag" key={m.id}>
+              <span className="nm">{m.name}</span>
+              <span className="consec"><input type="number" min="0" value={m.noConsec} onChange={e=>setConsec(m.id,e.target.value)}/>連勤禁止</span>
+              <button className="del" onClick={()=>delMember(m.id)} title="削除">×</button>
+            </span>
+          ))}
+          <input value={newName} placeholder="名前を入力" onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addMember();}} style={{width:120}}/>
+          <button className="btn sm accent" onClick={addMember}>＋ 追加</button>
+        </div>
+      </div>
+
+      {/* 2.5 希望の取り込み */}
+      <div className="card">
+        <h2><span className="num">＋</span>提出コードを取り込む</h2>
+        <div className="hint" style={{marginTop:0,marginBottom:8}}>バイトから送られてきた提出コードを貼り付けて取り込みます。同じ名前は上書き、未登録の名前は自動で追加されます。</div>
+        <div className="row" style={{alignItems:'stretch'}}>
+          <input value={importText} placeholder="提出コードを貼り付け" onChange={e=>setImportText(e.target.value)} style={{flex:'1 1 320px'}}/>
+          <button className="btn accent" onClick={importCode}>取り込む</button>
+        </div>
+        {importMsg&&<div className={"imp-msg "+(importMsg.ok?'imp-ok':'imp-ng')}>{importMsg.text}</div>}
+      </div>
+
+      {/* 3 希望入力 */}
+      <div className="card">
+        <h2><span className="num">3</span>希望入力</h2>
+        <div className="legend" style={{marginBottom:8}}>
+          <span><b className="pref-maru" style={{padding:'1px 6px',borderRadius:4}}>◯</b> 可能(1.0)</span>
+          <span><b className="pref-sankaku" style={{padding:'1px 6px',borderRadius:4}}>△</b> 他にいなければ可(0.5)</span>
+          <span><b className="pref-batsu" style={{padding:'1px 6px',borderRadius:4}}>×</b> 不可</span>
+          <span style={{marginLeft:4}}>セルをタップで ×→◯→△→× 切替</span>
+        </div>
+        <div className="grid-scroll">
+          <table>
+            <thead><tr><th className="namecol">メンバー</th>{days.map(x=><th key={x.d} className={"dayhead"+(x.we?" we":"")}>{x.d}<small>{WD[x.dow]}</small></th>)}</tr></thead>
+            <tbody>
+              <tr>
+                <td className="namecol" style={{color:'var(--muted)',fontSize:12}}>募集人数</td>
+                {days.map(x=>{const def=x.we?s.demand.weekend:s.demand.weekday;const val=s.demand.override[x.d];return <td key={x.d} style={{background:'#faf7f0'}}><input className="demand-input" value={val??''} placeholder={def} onChange={e=>setOverride(x.d,e.target.value)}/></td>;})}
+              </tr>
+              {s.members.map(m=>(
+                <tr key={m.id}>
+                  <td className="namecol">{m.name}
+                    <div style={{marginTop:2}}>
+                      <button className="btn sm ghost" style={{padding:'1px 6px',fontSize:10}} onClick={()=>fillRow(m.id,'◯')}>全◯</button>{' '}
+                      <button className="btn sm ghost" style={{padding:'1px 6px',fontSize:10}} onClick={()=>fillRow(m.id,'×')}>全×</button>
+                    </div>
+                  </td>
+                  {days.map(x=>{const p=getPref(m.id,x.d);return <td key={x.d} className={"pref-cell "+prefClass(p)} onClick={()=>cyclePref(m.id,x.d)}>{p}</td>;})}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 4 割り当て */}
+      <div className="card">
+        <h2><span className="num">4</span>自動割り当て</h2>
+        <div className="row">
+          <button className="btn accent" onClick={run}>シフトを自動作成 ▶</button>
+          <span className="save-note">※入力はこのブラウザに自動保存（このファイルをPC/スマホで開いた場合）。再実行で割り当てし直し（手動調整はリセット）。</span>
+        </div>
+        {s.assigned&&(
+          <div className="stat">
+            {['weekday','weekend'].map(pool=>{const r=s.assigned.report['_'+pool];return <div className="b" key={pool}><b>{pool==='weekday'?'平日 月〜木':'週末 金土日'}</b>募集 {r.totalSlots} 枠 / 延べ希望 {r.totalWish.toFixed(1)}（◯+△×0.5）・割合 {r.ratio.toFixed(2)}</div>;})}
+          </div>
+        )}
+      </div>
+
+      {/* 5 個人サマリー */}
+      {s.assigned&&(
+        <div className="card">
+          <h2><span className="num">5</span>個人サマリー</h2>
+          <div className="scroll-x">
+          <table className="sum-table">
+            <thead><tr>
+              <th>メンバー</th><th>連勤禁止</th>
+              <th>希望(平日)</th><th>希望(週末)</th><th>希望合計</th>
+              <th>採用(平日)</th><th>採用(週末)</th><th>採用合計</th>
+            </tr></thead>
+            <tbody>
+              {s.members.map(m=>{
+                const R=s.assigned.report[m.id]||{};
+                const rw=R.weekday||{maru:0,sankaku:0,wish:0,target:0};
+                const re=R.weekend||{maru:0,sankaku:0,wish:0,target:0};
+                const wishW=rw.wish,wishE=re.wish;
+                const aw=adoptedCount(m.id,'weekday'),ae=adoptedCount(m.id,'weekend');
+                const viol=consecViolation(m.id);
+                return <tr key={m.id}>
+                  <td><b>{m.name}</b>{viol&&<div className="warn">⚠ 連勤違反あり</div>}</td>
+                  <td className="n">{m.noConsec?m.noConsec+'連勤禁止':'—'}</td>
+                  <td className="n">{wishW.toFixed(1)}<div style={{fontSize:10,color:'var(--muted)'}}>◯{rw.maru} △{rw.sankaku}</div></td>
+                  <td className="n">{wishE.toFixed(1)}<div style={{fontSize:10,color:'var(--muted)'}}>◯{re.maru} △{re.sankaku}</div></td>
+                  <td className="n big">{(wishW+wishE).toFixed(1)}</td>
+                  <td className="n">{aw}</td>
+                  <td className="n">{ae}</td>
+                  <td className="n big" style={{color:'var(--accent)'}}>{aw+ae}</td>
+                </tr>;
+              })}
+            </tbody>
+          </table>
+          </div>
+          <div className="hint">希望合計は ◯=1.0・△=0.5 で計算（例：◯7・△1 → 7.5）。採用は手動調整を反映した最終値です。</div>
+        </div>
+      )}
+
+      {/* 6 カレンダー */}
+      <div className="card">
+        <h2><span className="num">6</span>シフト表（カレンダー・手動調整OK）</h2>
+        {!s.assigned?<div className="empty">まだ作成していません。「シフトを自動作成」を押してください。</div>:(
+          <>
+            <div className="toolbar">
+              <label className="fl" style={{flexDirection:'row',alignItems:'center',gap:8}}>
+                <span>絞り込み:</span>
+                <select value={filter} onChange={e=>setFilter(e.target.value)}>
+                  <option value="all">全員</option>
+                  {s.members.map(m=><option key={m.id} value={m.id}>{m.name} のみ</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="legend" style={{marginBottom:8}}>
+              <span>各マス：名前／希望／希望時刻／採用／勤務時刻</span>
+              <span>採用◯はタップで切替・薄い赤＝希望◯なのに未採用・小さい時は拡大して確認</span>
+            </div>
+            <div className="cal" style={{gridTemplateColumns:'repeat(7,minmax(0,1fr))',width:'100%'}}>
+              {['月','火','水','木','金','土','日'].map((w,i)=><div key={w} className={"cal-head"+(i>=4?" we":"")}>{w}</div>)}
+              {weeks.map((week,wi)=>week.map((x,ci)=>{
+                if(!x)return <div key={wi+'-'+ci} className="cal-cell blank"></div>;
+                const def=s.assigned.getDemand(x.d,x.we);
+                const over=s.demand.override[x.d]!==undefined;
+                let rows=[...s.members];
+                if(filter!=='all')rows=rows.filter(m=>m.id===filter);
+                const inCount=s.members.filter(m=>isIn(x.d,m.id)).length;
+                return (
+                  <div key={x.d} className={"cal-cell"+(x.we?" we":"")}>
+                    <div className="cal-date"><span>{x.d}<span style={{fontSize:9,color:x.we?'var(--weekend)':'var(--muted)',marginLeft:2}}>{WD[x.dow]}</span></span>
+                      <span className={"cap"+(over?" over":"")}>{inCount}/{def}</span></div>
+                    {rows.map(m=>{
+                      const p=getPref(m.id,x.d);const inn=isIn(x.d,m.id);const av=getAvail(m.id,x.d);
+                      const miss=p==='◯'&&!inn;
+                      const cc=p==='◯'?'cmaru':p==='△'?'csankaku':'cbatsu';
+                      return <div key={m.id} className={"mini-row"+(miss?' miss':'')}>
+                        <span className={"mnm "+cc}>{m.name}</span>
+                        <span className={"mpf "+cc}>{p}</span>
+                        <span className="mav">{p!=='×'&&av?av:'·'}</span>
+                        <span className="mak" onClick={e=>{e.stopPropagation();toggleAssign(x.d,m.id);}} style={{color:inn?'var(--accent)':'var(--line)'}}>{inn?'◯':'・'}</span>
+                        <span className="mwt">{inn?<TimePicker value={s.times[`${m.id}-${x.d}`]||''} onChange={v=>setTime(m.id,x.d,v)}/>:<span className="dim">·</span>}</span>
+                      </div>;
+                    })}
+                  </div>
+                );
+              }))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 7 シフトを共有 */}
+      <div className="card">
+        <h2><span className="num">7</span>シフトを共有する</h2>
+        <div className="hint" style={{marginTop:0,marginBottom:10}}>確定したシフト（手動調整を含む）を「共有コード」に変換します。閲覧専用ビューアの公開URLを設定しておくと、ワンタップで開ける「共有リンク」も作れます。リンクが使えない人にはコードを貼り付けてもらえばOKです。</div>
+        <label className="fl" style={{marginBottom:10}}>ビューアの公開URL（任意・一度設定すれば保存されます）
+          <input value={viewerUrl} placeholder="https://〜.netlify.app/view.html" onChange={e=>setViewerUrl(e.target.value)} style={{width:'100%',maxWidth:440}}/>
+        </label>
+        <div><button className="btn accent" onClick={buildShare} disabled={!s.assigned}>共有コード／リンクを作成 ▶</button></div>
+        {!s.assigned&&<div className="hint">先に「シフトを自動作成」してください。</div>}
+        {shareCode&&(
+          <div style={{marginTop:12}}>
+            {shareLink()?(
+              <div style={{marginBottom:12}}>
+                <div className="hint" style={{marginTop:0,marginBottom:6}}>① 共有リンク（これをLINEで送る・ワンタップで開けます）：</div>
+                <div className="codebox">{shareLink()}</div>
+                <button className="btn sm" style={{marginTop:8}} onClick={()=>copyText(shareLink())}>リンクをコピー</button>
+              </div>
+            ):(
+              <div className="hint" style={{marginBottom:10}}>※ 上に「ビューアの公開URL」を入れると、共有リンクも作れます（未入力なら下のコードを使用）。</div>
+            )}
+            <div className="hint" style={{marginTop:0,marginBottom:6}}>{shareLink()?'② ':''}共有コード（リンクが開けない人はビューアに貼り付け）：</div>
+            <div className="codebox">{shareCode}</div>
+            <button className="btn sm" style={{marginTop:8}} onClick={()=>copyText(shareCode)}>コードをコピー</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+class ErrorBoundary extends React.Component{
+  constructor(p){super(p);this.state={err:null};}
+  static getDerivedStateFromError(e){return {err:e};}
+  render(){
+    if(this.state.err){
+      return (<div style={{maxWidth:560,margin:'60px auto',padding:24,background:'#fffdf8',border:'1px solid #e3ddd0',borderRadius:16,fontFamily:'sans-serif'}}>
+        <h2 style={{marginBottom:10}}>表示エラーから復帰します</h2>
+        <p style={{color:'#8a8378',fontSize:14,lineHeight:1.7,marginBottom:16}}>保存データが原因で表示できませんでした。下のボタンで保存をクリアして再起動してください（メンバー・希望は初期化されます）。</p>
+        <button onClick={()=>{try{localStorage.removeItem('shiftmaker_v2');}catch(e){}location.reload();}}
+          style={{background:'#d8602e',color:'#fff',border:'none',borderRadius:10,padding:'10px 18px',fontWeight:700,cursor:'pointer'}}>データをリセットして再起動</button>
+      </div>);
+    }
+    return this.props.children;
+  }
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<ErrorBoundary><App/></ErrorBoundary>);
+</script>
+</body>
+</html>
