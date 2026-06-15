@@ -192,7 +192,7 @@
 <div id="root"></div>
 <script type="text/babel">
 const {useState,useEffect,useMemo,useRef} = React;
-const store={load(){try{const r=localStorage.getItem('shiftmaker_v2');return r?JSON.parse(r):null}catch(e){return null}},save(s){try{localStorage.setItem('shiftmaker_v2',JSON.stringify(s))}catch(e){}}};
+const store={load(){try{const r=localStorage.getItem('shiftmaker_v3');return r?JSON.parse(r):null}catch(e){return null}},save(s){try{localStorage.setItem('shiftmaker_v3',JSON.stringify(s))}catch(e){}}};
 const WD=['日','月','火','水','木','金','土'];
 const isWeekend=(dow)=>dow===5||dow===6||dow===0;            // 金土日
 const uid=()=>Math.random().toString(36).slice(2,9);
@@ -272,102 +272,92 @@ function TimePicker({value,onChange,disabled,suffix}){
   );
 }
 
-// ===== 割り当てアルゴリズム =====
-function assign(state){
-  const {year,month,members,prefs,demand}=state;
+// ===== 割り当てアルゴリズム（手入力を残し、足りない枠だけ自動で埋める） =====
+function autoFill(state){
+  const {year,month,members,prefs,demand,placed}=state;
   const dim=daysInMonth(year,month);
   const days=[];
   for(let d=1;d<=dim;d++){const dow=new Date(year,month-1,d).getDay();days.push({d,dow,we:isWeekend(dow)});}
   const getPref=(mid,d)=>(prefs[mid]&&prefs[mid][d])||'×';
   const getDemand=(d,we)=>(demand.override[d]??(we?demand.weekend:demand.weekday));
+  const isPlaced=(mid,d)=>!!(placed[d]&&placed[d][mid]);
 
-  const result={};days.forEach(x=>result[x.d]=[]);
-  const report={};members.forEach(m=>report[m.id]={});
+  // 現在の手入力をそのまま起点にする
+  const result={};days.forEach(x=>result[x.d]=members.filter(m=>isPlaced(m.id,x.d)).map(m=>m.id));
 
-  const eff={};          // 各日の有効募集人数
-  days.forEach(x=>{
-    const wishers=members.filter(m=>getPref(m.id,x.d)!=='×').length;
-    eff[x.d]=Math.min(getDemand(x.d,x.we),wishers);
-  });
-
-  const remainPool={weekday:{},weekend:{}};
-  ['weekday','weekend'].forEach(pool=>{
-    const poolDays=days.filter(x=>pool==='weekend'?x.we:!x.we);
-    const totalSlots=poolDays.reduce((s,x)=>s+eff[x.d],0);
-    // 希望ウェイト = ◯×1 + △×0.5
-    const wish={},cap={};
-    members.forEach(m=>{
-      let w=0,c=0;
-      poolDays.forEach(x=>{const p=getPref(m.id,x.d);w+=WEIGHT[p];if(p!=='×')c++;});
-      wish[m.id]=w;cap[m.id]=c;          // cap=実際に入れられる最大(◯+△の日数)
-    });
-    const totalWish=members.reduce((s,m)=>s+wish[m.id],0);
-    const ratio=totalWish>0?totalSlots/totalWish:0;
-    const target={};
-    members.forEach(m=>target[m.id]=Math.min(Math.floor(wish[m.id]*ratio),cap[m.id]));
-    let rem=totalSlots-members.reduce((s,m)=>s+target[m.id],0);
-    const order=[...members].sort((a,b)=>(wish[b.id]-wish[a.id])||(Math.random()-.5));
-    let g=0;while(rem>0&&g<9999){let placed=false;for(const m of order){if(rem<=0)break;if(target[m.id]<cap[m.id]){target[m.id]++;rem--;placed=true;}}if(!placed)break;g++;}
-    members.forEach(m=>{remainPool[pool][m.id]=target[m.id];report[m.id][pool]={maru:poolDays.filter(x=>getPref(m.id,x.d)==='◯').length,sankaku:poolDays.filter(x=>getPref(m.id,x.d)==='△').length,wish:wish[m.id],target:target[m.id]};});
-    report['_'+pool]={totalSlots,totalWish,ratio};
-  });
-
-  // 連勤チェック：dにmidを入れたとき N連勤以上になるか
   const servedOn=(mid,d)=>(result[d]||[]).includes(mid);
   const wouldExceed=(mid,d,N)=>{
     if(!N||N<1)return false;
     let len=1,p=d-1,q=d+1;
     while(p>=1&&servedOn(mid,p)){len++;p--;}
     while(q<=dim&&servedOn(mid,q)){len++;q++;}
-    return len>=N;                       // N連勤になる＝禁止
+    return len>=N;
   };
   const noConsec=(mid)=>{const m=members.find(x=>x.id===mid);return m&&m.noConsec?m.noConsec:0;};
 
-  // 足りない日（希望者−募集 が小さい日）を優先して埋める
+  // プールごとに公平な目標数を出し、手入力済みの分を差し引いて「残り目標」を決める
+  const remainPool={weekday:{},weekend:{}};
+  ['weekday','weekend'].forEach(pool=>{
+    const poolDays=days.filter(x=>pool==='weekend'?x.we:!x.we);
+    const eff={};poolDays.forEach(x=>{const wishers=members.filter(m=>getPref(m.id,x.d)!=='×').length;eff[x.d]=Math.min(getDemand(x.d,x.we),wishers);});
+    const totalSlots=poolDays.reduce((s,x)=>s+eff[x.d],0);
+    const wish={},cap={};
+    members.forEach(m=>{let w=0,cc=0;poolDays.forEach(x=>{const p=getPref(m.id,x.d);w+=WEIGHT[p];if(p!=='×')cc++;});wish[m.id]=w;cap[m.id]=cc;});
+    const totalWish=members.reduce((s,m)=>s+wish[m.id],0);
+    const ratio=totalWish>0?totalSlots/totalWish:0;
+    const target={};
+    members.forEach(m=>target[m.id]=Math.min(Math.floor(wish[m.id]*ratio),cap[m.id]));
+    let rem=totalSlots-members.reduce((s,m)=>s+target[m.id],0);
+    const order=[...members].sort((a,b)=>(wish[b.id]-wish[a.id])||(Math.random()-.5));
+    let g=0;while(rem>0&&g<9999){let pl=false;for(const m of order){if(rem<=0)break;if(target[m.id]<cap[m.id]){target[m.id]++;rem--;pl=true;}}if(!pl)break;g++;}
+    members.forEach(m=>{const placedCnt=poolDays.filter(x=>isPlaced(m.id,x.d)).length;remainPool[pool][m.id]=Math.max(0,target[m.id]-placedCnt);});
+  });
+
+  // 足りない日を優先して埋める
   const daysSorted=[...days].sort((a,b)=>{
-    const sa=members.filter(m=>getPref(m.id,a.d)!=='×').length-eff[a.d];
-    const sb=members.filter(m=>getPref(m.id,b.d)!=='×').length-eff[b.d];
+    const sa=members.filter(m=>getPref(m.id,a.d)!=='×').length-getDemand(a.d,a.we);
+    const sb=members.filter(m=>getPref(m.id,b.d)!=='×').length-getDemand(b.d,b.we);
     return (sa-sb)||(Math.random()-.5);
   });
 
   daysSorted.forEach(x=>{
-    const need=eff[x.d];if(need<=0)return;
+    const need=getDemand(x.d,x.we);
     const pool=x.we?'weekend':'weekday';const remain=remainPool[pool];
-    const pick=[];
+    const pick=result[x.d];
     const tryAdd=(cands)=>{
       for(const m of cands){
         if(pick.length>=need)break;
         if(pick.includes(m.id))continue;
-        if(wouldExceed(m.id,x.d,noConsec(m.id)))continue;   // 連勤制約
-        pick.push(m.id);result[x.d]=pick;                    // 即反映
+        if(wouldExceed(m.id,x.d,noConsec(m.id)))continue;
+        pick.push(m.id);
         if(remain[m.id]>0)remain[m.id]--;
       }
     };
-    // 1) ◯希望 & 残り目標あり（残り多い順）
     tryAdd(members.filter(m=>getPref(m.id,x.d)==='◯'&&remain[m.id]>0).sort((a,b)=>(remain[b.id]-remain[a.id])||(Math.random()-.5)));
-    // 2) ◯希望（目標達成済みでも日を埋める）
     tryAdd(members.filter(m=>getPref(m.id,x.d)==='◯').sort(()=>Math.random()-.5));
-    // 3) △希望で補充
     tryAdd(members.filter(m=>getPref(m.id,x.d)==='△').sort(()=>Math.random()-.5));
     result[x.d]=pick;
   });
 
-  return {result,report,days,getDemand,eff};
+  const out={};
+  days.forEach(x=>{if(result[x.d]&&result[x.d].length){out[x.d]={};result[x.d].forEach(mid=>out[x.d][mid]=true);}});
+  return out;
 }
 
+const DEFAULT_VIEWER_URL='https://nosuke10311031-cloud.github.io/shift-maker/view.html';
 function App(){
   const init=store.load()||{
     year:new Date().getFullYear(),month:new Date().getMonth()+1,
-    members:[{id:uid(),name:'佐藤',noConsec:0},{id:uid(),name:'鈴木',noConsec:3},{id:uid(),name:'田中',noConsec:0},{id:uid(),name:'高橋',noConsec:0}],
+    members:[],
     prefs:{},demand:{weekday:1,weekend:2,override:{}},
-    assigned:null,manual:{},times:{},availFrom:{}
+    placed:{},times:{},availFrom:{}
   };
   const [s,setS]=useState(init);
   const [filter,setFilter]=useState('all');
   const [viewMode,setViewMode]=useState('cal');
   const [newName,setNewName]=useState('');
   const [shareCode,setShareCode]=useState('');
-  const [viewerUrl,setViewerUrl]=useState(()=>{try{return localStorage.getItem('shiftmaker_viewer_url')||'';}catch(e){return '';}});
+  const [viewerUrl,setViewerUrl]=useState(()=>{try{return localStorage.getItem('shiftmaker_viewer_url')||DEFAULT_VIEWER_URL;}catch(e){return DEFAULT_VIEWER_URL;}});
   useEffect(()=>{try{localStorage.setItem('shiftmaker_viewer_url',viewerUrl);}catch(e){}},[viewerUrl]);
   const [importText,setImportText]=useState(''); // 管理者の貼り付け欄
   const [importMsg,setImportMsg]=useState(null);
@@ -387,10 +377,11 @@ function App(){
   const setDemand=(k,v)=>set({demand:{...s.demand,[k]:Math.max(0,parseInt(v)||0)}});
   const setOverride=(d,v)=>{const ov={...s.demand.override};if(v===''||v===null){delete ov[d];}else ov[d]=Math.max(0,parseInt(v)||0);set({demand:{...s.demand,override:ov}});};
 
-  const run=()=>set({assigned:assign(s),manual:{}});
+  const runFill=()=>set({placed:autoFill(s)});
+  const clearAll=()=>{if(window.confirm('カレンダーの採用をすべて消します。よろしいですか？'))set({placed:{}});};
 
-  const isIn=(d,mid)=>{if(s.manual[d]&&mid in s.manual[d])return s.manual[d][mid];return s.assigned?(s.assigned.result[d]||[]).includes(mid):false;};
-  const toggleAssign=(d,mid)=>{const dm={...(s.manual[d]||{})};dm[mid]=!isIn(d,mid);set({manual:{...s.manual,[d]:dm}});};
+  const isIn=(d,mid)=>!!(s.placed[d]&&s.placed[d][mid]);
+  const toggleAssign=(d,mid)=>{const dm={...(s.placed[d]||{})};if(dm[mid])delete dm[mid];else dm[mid]=true;set({placed:{...s.placed,[d]:dm}});};
   const setTime=(mid,d,v)=>set({times:{...s.times,[`${mid}-${d}`]:v}});
   const prefClass=(p)=>p==='◯'?'pref-maru':p==='△'?'pref-sankaku':'pref-batsu';
 
@@ -414,7 +405,7 @@ function App(){
 
   // ===== 配布用：共有コード（LZString圧縮）を生成 =====
   const buildShare=()=>{
-    if(!s.assigned)return;
+    if(!s.members.length)return;
     const idx={};s.members.forEach((m,i)=>{idx[m.id]=i;});
     const C={y:s.year,m:s.month,n:s.members.map(m=>m.name),a:{},t:{},p:{},v:{}};
     days.forEach(x=>{
@@ -525,22 +516,56 @@ function App(){
         </div>
       </div>
 
-      {/* 4 割り当て */}
+      {/* 4 シフト作成 */}
       <div className="card">
-        <h2><span className="num">4</span>自動割り当て</h2>
-        <div className="row">
-          <button className="btn accent" onClick={run}>シフトを自動作成 ▶</button>
-          <span className="save-note">※入力はこのブラウザに自動保存（このファイルをPC/スマホで開いた場合）。再実行で割り当てし直し（手動調整はリセット）。</span>
+        <h2><span className="num">4</span>シフト作成 <span style={{fontSize:11,fontWeight:400,color:'var(--muted)'}}>／ マスをタップで採用◯を付け外し・時刻もタップ</span></h2>
+        <div className="toolbar">
+          <button className="btn accent" onClick={runFill} disabled={!s.members.length}>残りを自動で作成 ▶</button>
+          <button className="btn ghost sm" onClick={clearAll} disabled={!s.members.length}>全部クリア</button>
+          <label className="fl" style={{flexDirection:'row',alignItems:'center',gap:8,marginLeft:'auto'}}>
+            <span>絞り込み:</span>
+            <select value={filter} onChange={e=>setFilter(e.target.value)}>
+              <option value="all">全員</option>
+              {s.members.map(m=><option key={m.id} value={m.id}>{m.name} のみ</option>)}
+            </select>
+          </label>
         </div>
-        {s.assigned&&(
-          <div className="stat">
-            {['weekday','weekend'].map(pool=>{const r=s.assigned.report['_'+pool];return <div className="b" key={pool}><b>{pool==='weekday'?'平日 月〜木':'週末 金土日'}</b>募集 {r.totalSlots} 枠 / 延べ希望 {r.totalWish.toFixed(1)}（◯+△×0.5）・割合 {r.ratio.toFixed(2)}</div>;})}
+        <div className="hint" style={{marginTop:0,marginBottom:8}}>「残りを自動で作成」＝手で入れた所はそのまま、空いてる枠だけ公平に自動で埋めます（何も入れずに押せば全部自動）。各マス：名前／希望／希望時刻／採用／勤務時刻。薄い赤＝希望◯なのに未採用。</div>
+        {!s.members.length?<div className="empty">先に「2 メンバー」と「3 希望入力」を用意してください。</div>:(
+          <div className="cal" style={{gridTemplateColumns:'repeat(7,minmax(0,1fr))',width:'100%'}}>
+            {['月','火','水','木','金','土','日'].map((w,i)=><div key={w} className={"cal-head"+(i>=4?" we":"")}>{w}</div>)}
+            {weeks.map((week,wi)=>week.map((x,ci)=>{
+              if(!x)return <div key={wi+'-'+ci} className="cal-cell blank"></div>;
+              const def=(s.demand.override[x.d]??(x.we?s.demand.weekend:s.demand.weekday));
+              const over=s.demand.override[x.d]!==undefined;
+              let rows=[...s.members];
+              if(filter!=='all')rows=rows.filter(m=>m.id===filter);
+              const inCount=s.members.filter(m=>isIn(x.d,m.id)).length;
+              return (
+                <div key={x.d} className={"cal-cell"+(x.we?" we":"")}>
+                  <div className="cal-date"><span>{x.d}<span style={{fontSize:9,color:x.we?'var(--weekend)':'var(--muted)',marginLeft:2}}>{WD[x.dow]}</span></span>
+                    <span className={"cap"+(over?" over":"")}>{inCount}/{def}</span></div>
+                  {rows.map(m=>{
+                    const p=getPref(m.id,x.d);const inn=isIn(x.d,m.id);const av=getAvail(m.id,x.d);
+                    const miss=p==='◯'&&!inn;
+                    const cc=p==='◯'?'cmaru':p==='△'?'csankaku':'cbatsu';
+                    return <div key={m.id} className={"mini-row"+(miss?' miss':'')}>
+                      <span className={"mnm "+cc}>{m.name}</span>
+                      <span className={"mpf "+cc}>{p}</span>
+                      <span className="mav">{p!=='×'&&av?av:'·'}</span>
+                      <span className="mak" onClick={e=>{e.stopPropagation();toggleAssign(x.d,m.id);}} style={{color:inn?'var(--accent)':'var(--line)'}}>{inn?'◯':'・'}</span>
+                      <span className="mwt">{inn?<TimePicker value={s.times[`${m.id}-${x.d}`]||''} onChange={v=>setTime(m.id,x.d,v)}/>:<span className="dim">·</span>}</span>
+                    </div>;
+                  })}
+                </div>
+              );
+            }))}
           </div>
         )}
       </div>
 
       {/* 5 個人サマリー */}
-      {s.assigned&&(
+      {s.members.length>0&&(
         <div className="card">
           <h2><span className="num">5</span>個人サマリー</h2>
           <div className="scroll-x">
@@ -552,18 +577,16 @@ function App(){
             </tr></thead>
             <tbody>
               {s.members.map(m=>{
-                const R=s.assigned.report[m.id]||{};
-                const rw=R.weekday||{maru:0,sankaku:0,wish:0,target:0};
-                const re=R.weekend||{maru:0,sankaku:0,wish:0,target:0};
-                const wishW=rw.wish,wishE=re.wish;
+                const cnt=(pool)=>{let mar=0,san=0;days.forEach(x=>{if(pool==='weekday'&&x.we)return;if(pool==='weekend'&&!x.we)return;const p=getPref(m.id,x.d);if(p==='◯')mar++;else if(p==='△')san++;});return {mar,san,wish:mar+san*0.5};};
+                const rw=cnt('weekday'),re=cnt('weekend');
                 const aw=adoptedCount(m.id,'weekday'),ae=adoptedCount(m.id,'weekend');
                 const viol=consecViolation(m.id);
                 return <tr key={m.id}>
                   <td><b>{m.name}</b>{viol&&<div className="warn">⚠ 連勤違反あり</div>}</td>
                   <td className="n">{m.noConsec?m.noConsec+'連勤禁止':'—'}</td>
-                  <td className="n">{wishW.toFixed(1)}<div style={{fontSize:10,color:'var(--muted)'}}>◯{rw.maru} △{rw.sankaku}</div></td>
-                  <td className="n">{wishE.toFixed(1)}<div style={{fontSize:10,color:'var(--muted)'}}>◯{re.maru} △{re.sankaku}</div></td>
-                  <td className="n big">{(wishW+wishE).toFixed(1)}</td>
+                  <td className="n">{rw.wish.toFixed(1)}<div style={{fontSize:10,color:'var(--muted)'}}>◯{rw.mar} △{rw.san}</div></td>
+                  <td className="n">{re.wish.toFixed(1)}<div style={{fontSize:10,color:'var(--muted)'}}>◯{re.mar} △{re.san}</div></td>
+                  <td className="n big">{(rw.wish+re.wish).toFixed(1)}</td>
                   <td className="n">{aw}</td>
                   <td className="n">{ae}</td>
                   <td className="n big" style={{color:'var(--accent)'}}>{aw+ae}</td>
@@ -572,70 +595,19 @@ function App(){
             </tbody>
           </table>
           </div>
-          <div className="hint">希望合計は ◯=1.0・△=0.5 で計算（例：◯7・△1 → 7.5）。採用は手動調整を反映した最終値です。</div>
+          <div className="hint">希望合計は ◯=1.0・△=0.5 で計算。採用は今のカレンダーの状態を反映します。</div>
         </div>
       )}
 
-      {/* 6 カレンダー */}
-      <div className="card">
-        <h2><span className="num">6</span>シフト表（カレンダー・手動調整OK）</h2>
-        {!s.assigned?<div className="empty">まだ作成していません。「シフトを自動作成」を押してください。</div>:(
-          <>
-            <div className="toolbar">
-              <label className="fl" style={{flexDirection:'row',alignItems:'center',gap:8}}>
-                <span>絞り込み:</span>
-                <select value={filter} onChange={e=>setFilter(e.target.value)}>
-                  <option value="all">全員</option>
-                  {s.members.map(m=><option key={m.id} value={m.id}>{m.name} のみ</option>)}
-                </select>
-              </label>
-            </div>
-            <div className="legend" style={{marginBottom:8}}>
-              <span>各マス：名前／希望／希望時刻／採用／勤務時刻</span>
-              <span>採用◯はタップで切替・薄い赤＝希望◯なのに未採用・小さい時は拡大して確認</span>
-            </div>
-            <div className="cal" style={{gridTemplateColumns:'repeat(7,minmax(0,1fr))',width:'100%'}}>
-              {['月','火','水','木','金','土','日'].map((w,i)=><div key={w} className={"cal-head"+(i>=4?" we":"")}>{w}</div>)}
-              {weeks.map((week,wi)=>week.map((x,ci)=>{
-                if(!x)return <div key={wi+'-'+ci} className="cal-cell blank"></div>;
-                const def=s.assigned.getDemand(x.d,x.we);
-                const over=s.demand.override[x.d]!==undefined;
-                let rows=[...s.members];
-                if(filter!=='all')rows=rows.filter(m=>m.id===filter);
-                const inCount=s.members.filter(m=>isIn(x.d,m.id)).length;
-                return (
-                  <div key={x.d} className={"cal-cell"+(x.we?" we":"")}>
-                    <div className="cal-date"><span>{x.d}<span style={{fontSize:9,color:x.we?'var(--weekend)':'var(--muted)',marginLeft:2}}>{WD[x.dow]}</span></span>
-                      <span className={"cap"+(over?" over":"")}>{inCount}/{def}</span></div>
-                    {rows.map(m=>{
-                      const p=getPref(m.id,x.d);const inn=isIn(x.d,m.id);const av=getAvail(m.id,x.d);
-                      const miss=p==='◯'&&!inn;
-                      const cc=p==='◯'?'cmaru':p==='△'?'csankaku':'cbatsu';
-                      return <div key={m.id} className={"mini-row"+(miss?' miss':'')}>
-                        <span className={"mnm "+cc}>{m.name}</span>
-                        <span className={"mpf "+cc}>{p}</span>
-                        <span className="mav">{p!=='×'&&av?av:'·'}</span>
-                        <span className="mak" onClick={e=>{e.stopPropagation();toggleAssign(x.d,m.id);}} style={{color:inn?'var(--accent)':'var(--line)'}}>{inn?'◯':'・'}</span>
-                        <span className="mwt">{inn?<TimePicker value={s.times[`${m.id}-${x.d}`]||''} onChange={v=>setTime(m.id,x.d,v)}/>:<span className="dim">·</span>}</span>
-                      </div>;
-                    })}
-                  </div>
-                );
-              }))}
-            </div>
-          </>
-        )}
-      </div>
-
       {/* 7 シフトを共有 */}
       <div className="card">
-        <h2><span className="num">7</span>シフトを共有する</h2>
+        <h2><span className="num">6</span>シフトを共有する</h2>
         <div className="hint" style={{marginTop:0,marginBottom:10}}>確定したシフト（手動調整を含む）を「共有コード」に変換します。閲覧専用ビューアの公開URLを設定しておくと、ワンタップで開ける「共有リンク」も作れます。リンクが使えない人にはコードを貼り付けてもらえばOKです。</div>
-        <label className="fl" style={{marginBottom:10}}>ビューアの公開URL（任意・一度設定すれば保存されます）
+        <label className="fl" style={{marginBottom:10}}>ビューアの公開URL（自動で入っています。普段はこのままでOK）
           <input value={viewerUrl} placeholder="https://〜.netlify.app/view.html" onChange={e=>setViewerUrl(e.target.value)} style={{width:'100%',maxWidth:440}}/>
         </label>
-        <div><button className="btn accent" onClick={buildShare} disabled={!s.assigned}>共有コード／リンクを作成 ▶</button></div>
-        {!s.assigned&&<div className="hint">先に「シフトを自動作成」してください。</div>}
+        <div><button className="btn accent" onClick={buildShare} disabled={!s.members.length}>共有コード／リンクを作成 ▶</button></div>
+        {!s.members.length&&<div className="hint">先にメンバーを追加してください。</div>}
         {shareCode&&(
           <div style={{marginTop:12}}>
             {shareLink()?(
@@ -664,7 +636,7 @@ class ErrorBoundary extends React.Component{
       return (<div style={{maxWidth:560,margin:'60px auto',padding:24,background:'#fffdf8',border:'1px solid #e3ddd0',borderRadius:16,fontFamily:'sans-serif'}}>
         <h2 style={{marginBottom:10}}>表示エラーから復帰します</h2>
         <p style={{color:'#8a8378',fontSize:14,lineHeight:1.7,marginBottom:16}}>保存データが原因で表示できませんでした。下のボタンで保存をクリアして再起動してください（メンバー・希望は初期化されます）。</p>
-        <button onClick={()=>{try{localStorage.removeItem('shiftmaker_v2');}catch(e){}location.reload();}}
+        <button onClick={()=>{try{localStorage.removeItem('shiftmaker_v3');}catch(e){}location.reload();}}
           style={{background:'#d8602e',color:'#fff',border:'none',borderRadius:10,padding:'10px 18px',fontWeight:700,cursor:'pointer'}}>データをリセットして再起動</button>
       </div>);
     }
