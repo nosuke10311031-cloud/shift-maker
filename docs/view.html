@@ -22,18 +22,18 @@ select{font-family:inherit;font-size:15px;padding:9px 12px;border:1px solid #e3d
 .empty{color:#8a8378;padding:10px 4px}
 .legend2{font-size:11px;color:#8a8378;margin:6px 0 12px;line-height:1.5}
 .foot{color:#a89f90;font-size:11px;margin-top:24px;text-align:center}
-.vcal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;width:100%}
+.vcal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;width:100%;min-width:0}
 .vch{text-align:center;font-size:11px;font-weight:700;color:#8a8378;padding:3px 0}
 .vch.we{color:#bb4d6e}
-.vcell{border:1px solid #e3ddd0;border-radius:8px;background:#fffdf8;min-height:52px;padding:3px;display:flex;flex-direction:column;gap:2px}
+.vcell{border:1px solid #e3ddd0;border-radius:8px;background:#fffdf8;min-width:0;min-height:52px;padding:3px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
 .vcell.we{background:#fdf7f5}.vcell.blank{background:transparent;border:none}
 .vcd{font-family:'Zen Maru Gothic',sans-serif;font-weight:700;font-size:12px;display:flex;align-items:center}
 .vcd.short{background:#fce9a3;border-radius:4px}
 .vwd{font-size:9px;color:#8a8378;margin-left:2px}
 .vcnt{margin-left:auto;font-size:9px;color:#8a8378;font-weight:400}
-.vmt{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:stretch;font-size:9px;line-height:1.7;margin-top:2px;column-gap:2px}
-.vmt>span{border-bottom:1px solid #eee7da;padding:0 3px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.vmn{font-weight:600}
+.vmt{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.35fr) minmax(0,1.35fr);align-items:stretch;font-size:8px;line-height:1.4;margin-top:2px;border-top:1px solid #eee7da;border-left:1px solid #eee7da}
+.vmt>span{border-right:1px solid #eee7da;border-bottom:1px solid #eee7da;padding:1px;min-width:0;white-space:nowrap;overflow:hidden;text-align:center}
+.vmt .vmn{font-weight:600;white-space:normal;overflow-wrap:anywhere;text-align:left}
 .vmn.cmaru{color:#2f9e6f}.vmn.csankaku{color:#d99a26}.vmn.cbatsu{color:#c2bcb1;font-weight:400}
 .vmp{text-align:center;color:#7a756c;background:#ece9e2}
 .vmw{text-align:center;color:#d8602e;font-weight:700}
@@ -42,6 +42,16 @@ select{font-family:inherit;font-size:15px;padding:9px 12px;border:1px solid #e3d
 .paste textarea{font-family:monospace;font-size:12px;width:100%;min-height:96px;border:1px solid #e3ddd0;border-radius:10px;padding:10px;background:#fffdf8;color:#2b2724;resize:vertical}
 .btn{font-family:inherit;font-weight:700;font-size:14px;padding:10px 18px;border:none;border-radius:10px;background:#d8602e;color:#fff;cursor:pointer;align-self:flex-start}
 .err{background:#fbe4e4;color:#a33;padding:10px 14px;border-radius:10px;font-size:13px}
+@media(max-width:600px){
+body{padding:10px 2px 50px}
+.card{padding:10px 4px}
+.vcal{gap:1px}
+.vch{font-size:8px;padding:2px 0}
+.vcell{border-radius:3px;padding:1px;gap:1px}
+.vcd{font-size:8px;line-height:1.2}.vwd,.vcnt{font-size:6px}
+.vmt{font-size:5px;line-height:1.15;margin-top:1px}
+.vmt>span{padding:1px 0}
+}
 </style>
 </head>
 <body>
@@ -116,7 +126,7 @@ select{font-family:inherit;font-size:15px;padding:9px 12px;border:1px solid #e3d
         var id=rows[r].id;var p=prefOf(id,d);var inn=isIn(id,d);var av=availOf(id,d);var tm=timeOf(id,d);
         var cc=pcls(p);
         var wishCell=(p!=='×'&&av)?av:p;
-        var workCell=inn?(tm||'◯'):'·';
+        var workCell=inn?(tm||'·'):'·';
         h+='<span class="vmn '+cc+'">'+esc(nameOf(id))+'</span>';
         h+='<span class="vmp">'+wishCell+'</span>';
         h+='<span class="vmw'+(inn?' vwork':'')+'">'+workCell+'</span>';

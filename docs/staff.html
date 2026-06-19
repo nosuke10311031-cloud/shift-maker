@@ -36,7 +36,7 @@
   .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;width:100%}
   .ch{text-align:center;font-size:12px;font-weight:700;color:var(--muted);padding:3px 0}
   .ch.we{color:var(--weekend)}
-  .icell{border:1px solid var(--line);border-radius:8px;background:var(--paper);min-height:64px;padding:3px;display:flex;flex-direction:column;gap:2px;align-items:center}
+  .icell{border:1px solid var(--line);border-radius:8px;background:var(--paper);min-width:0;min-height:64px;padding:3px;display:flex;flex-direction:column;gap:2px;align-items:center;overflow:hidden}
   .icell.we{background:#fdf7f5}.icell.blank{background:transparent;border:none}
   .iday{font-family:'Zen Maru Gothic';font-weight:700;font-size:12px;align-self:flex-start}
   .iday .wd{font-size:9px;color:var(--muted);margin-left:2px}
@@ -54,6 +54,16 @@
   #qrbox{background:#fff;padding:8px;border-radius:10px;border:1px solid var(--line)}
   .msg{margin-top:10px;padding:10px 14px;border-radius:10px;font-size:13px}
   .msg.ng{background:#fbe4e4;color:#a33}
+  @media(max-width:600px){
+    .wrap{padding:14px 3px 60px}
+    .card{padding:10px 3px}
+    .cal{gap:1px}
+    .ch{font-size:8px;padding:2px 0}
+    .icell{border-radius:4px;padding:1px;gap:1px}
+    .iday{font-size:8px}.iday .wd{font-size:6px}
+    .ipref{font-size:14px;padding:1px 0}
+    .itime{font-size:7px;padding:2px 0}
+  }
   /* 時刻ホイール */
   .ov{position:fixed;inset:0;z-index:999;background:rgba(20,16,12,.18)}
   .pop{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1000;background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(43,39,36,.28);padding:14px;width:min(300px,92vw)}
