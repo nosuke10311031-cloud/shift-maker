@@ -83,6 +83,7 @@
   .cal-date{font-family:'Zen Maru Gothic';font-weight:700;font-size:14px;display:flex;justify-content:space-between;align-items:center}
   .cal-date .cap{font-size:10px;color:var(--muted);font-weight:400}
   .cal-date .over{color:var(--accent)}
+  .cal-date.short{background:#fce9a3;border-radius:4px}
   .mrow{display:grid;grid-template-columns:minmax(42px,1fr) 14px 46px 14px 52px;gap:2px;align-items:center;font-size:11px;padding:2px 0;cursor:pointer;border-radius:5px}
   .avt{font-size:10px;color:var(--accent);font-weight:700;flex:none;white-space:nowrap}
   .avt2{font-size:10px;color:var(--accent);font-weight:700;text-align:center;white-space:nowrap;overflow:hidden}
@@ -117,6 +118,20 @@
   .mini-row .mwt .tp{display:block;width:100%}
   .mini-row .mwt .tp-btn{width:100%;padding:1px;font-size:8px}
   .mini-row .mwt .dim,.mini-row .mav.dim{color:#cdc6b8}
+  .mini-row .wishfill{background:#fcebdd}
+  .mini-row .workfill{background:#f6c6a0}
+  .mini-row .mwt.workfill .tp-btn{background:transparent}
+  .mini-row .lockfill{background:#bcd3f0}
+  .mini-row .mwt.lockfill .tp-btn{background:transparent}
+  .cf-wrap{position:relative;display:inline-block}
+  .cf-panel{position:absolute;z-index:50;right:0;margin-top:4px;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px rgba(43,39,36,.22);padding:8px;min-width:180px;max-height:300px;overflow:auto}
+  .cf-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:13px;user-select:none}
+  .cf-row:hover{background:#f3efe6}
+  .cf-row.allrow{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:4px;gap:6px}
+  .cf-row input{width:15px;height:15px;flex:none}
+  .dnum{cursor:pointer;border-radius:4px;padding:0 3px}
+  .dnum:hover{background:#e8eef7}
+  .cal-date .lk{font-size:10px;margin-left:2px}
   /* 日付ブロック（縦積み・5列テーブル） */
   .dblock{border:1px solid var(--line);border-radius:12px;background:var(--paper);margin-bottom:10px;overflow:hidden}
   .dblock.we{background:#fdf7f5}
@@ -272,70 +287,82 @@ function TimePicker({value,onChange,disabled,suffix}){
   );
 }
 
-// ===== 割り当てアルゴリズム（手入力を残し、足りない枠だけ自動で埋める） =====
+// ===== 割り当てアルゴリズム =====
+// 公平の目標を「最大剰余法」で作り、達成率の低い人＋前後半バランスで埋める。連勤禁止は絶対。手入力は保持。
 function autoFill(state){
-  const {year,month,members,prefs,demand,placed}=state;
+  const {year,month,members,prefs,demand,placed,confM,confD}=state;
   const dim=daysInMonth(year,month);
   const days=[];
   for(let d=1;d<=dim;d++){const dow=new Date(year,month-1,d).getDay();days.push({d,dow,we:isWeekend(dow)});}
   const getPref=(mid,d)=>(prefs[mid]&&prefs[mid][d])||'×';
   const getDemand=(d,we)=>(demand.override[d]??(we?demand.weekend:demand.weekday));
   const isPlaced=(mid,d)=>!!(placed[d]&&placed[d][mid]);
+  const isConfM=(mid)=>!!(confM&&confM[mid]);
+  const isConfD=(dd)=>!!(confD&&confD[dd]);
+  const half=(d)=>d<=Math.ceil(dim/2)?'A':'B';
 
-  // 現在の手入力をそのまま起点にする
+  // 手入力を起点に
   const result={};days.forEach(x=>result[x.d]=members.filter(m=>isPlaced(m.id,x.d)).map(m=>m.id));
 
+  // 連勤禁止（絶対）
   const servedOn=(mid,d)=>(result[d]||[]).includes(mid);
-  const wouldExceed=(mid,d,N)=>{
-    if(!N||N<1)return false;
-    let len=1,p=d-1,q=d+1;
-    while(p>=1&&servedOn(mid,p)){len++;p--;}
-    while(q<=dim&&servedOn(mid,q)){len++;q++;}
-    return len>=N;
-  };
+  const wouldExceed=(mid,d,N)=>{if(!N||N<1)return false;let len=1,p=d-1,q=d+1;while(p>=1&&servedOn(mid,p)){len++;p--;}while(q<=dim&&servedOn(mid,q)){len++;q++;}return len>=N;};
   const noConsec=(mid)=>{const m=members.find(x=>x.id===mid);return m&&m.noConsec?m.noConsec:0;};
 
-  // プールごとに公平な目標数を出し、手入力済みの分を差し引いて「残り目標」を決める
-  const remainPool={weekday:{},weekend:{}};
+  // ---- プール別の目標（最大剰余法）----
+  const poolTarget={weekday:{},weekend:{}};
   ['weekday','weekend'].forEach(pool=>{
-    const poolDays=days.filter(x=>pool==='weekend'?x.we:!x.we);
-    const eff={};poolDays.forEach(x=>{const wishers=members.filter(m=>getPref(m.id,x.d)!=='×').length;eff[x.d]=Math.min(getDemand(x.d,x.we),wishers);});
-    const totalSlots=poolDays.reduce((s,x)=>s+eff[x.d],0);
+    const pd=days.filter(x=>pool==='weekend'?x.we:!x.we);
+    let slots=0;pd.forEach(x=>{const w=members.filter(m=>getPref(m.id,x.d)!=='×').length;slots+=Math.min(getDemand(x.d,x.we),w);});
     const wish={},cap={};
-    members.forEach(m=>{let w=0,cc=0;poolDays.forEach(x=>{const p=getPref(m.id,x.d);w+=WEIGHT[p];if(p!=='×')cc++;});wish[m.id]=w;cap[m.id]=cc;});
+    members.forEach(m=>{let w=0,c=0;pd.forEach(x=>{const p=getPref(m.id,x.d);w+=WEIGHT[p];if(p!=='×')c++;});wish[m.id]=w;cap[m.id]=c;});
     const totalWish=members.reduce((s,m)=>s+wish[m.id],0);
-    const ratio=totalWish>0?totalSlots/totalWish:0;
-    const target={};
-    members.forEach(m=>target[m.id]=Math.min(Math.floor(wish[m.id]*ratio),cap[m.id]));
-    let rem=totalSlots-members.reduce((s,m)=>s+target[m.id],0);
-    const order=[...members].sort((a,b)=>(wish[b.id]-wish[a.id])||(Math.random()-.5));
-    let g=0;while(rem>0&&g<9999){let pl=false;for(const m of order){if(rem<=0)break;if(target[m.id]<cap[m.id]){target[m.id]++;rem--;pl=true;}}if(!pl)break;g++;}
-    members.forEach(m=>{const placedCnt=poolDays.filter(x=>isPlaced(m.id,x.d)).length;remainPool[pool][m.id]=Math.max(0,target[m.id]-placedCnt);});
+    const ratio=totalWish>0?slots/totalWish:0;
+    const raw={};let used=0;
+    members.forEach(m=>{raw[m.id]=wish[m.id]*ratio;poolTarget[pool][m.id]=Math.min(Math.floor(raw[m.id]),cap[m.id]);used+=poolTarget[pool][m.id];});
+    let rem=slots-used;
+    // 余りは「小数点以下が大きい人」から1つずつ（上限まで）
+    const byFrac=[...members].sort((a,b)=>((raw[b.id]-Math.floor(raw[b.id]))-(raw[a.id]-Math.floor(raw[a.id])))||(Math.random()-.5));
+    for(const m of byFrac){if(rem<=0)break;if(poolTarget[pool][m.id]<cap[m.id]){poolTarget[pool][m.id]++;rem--;}}
+  });
+  const totalTarget={};members.forEach(m=>totalTarget[m.id]=poolTarget.weekday[m.id]+poolTarget.weekend[m.id]);
+
+  // ---- 前後半の目標（出せる日数の比・ソフト）----
+  const halfTarget={A:{},B:{}};
+  members.forEach(m=>{
+    let aw=0,bw=0;days.forEach(x=>{if(getPref(m.id,x.d)!=='×')(half(x.d)==='A'?aw++:bw++);});
+    const tot=aw+bw;
+    halfTarget.A[m.id]=tot>0?totalTarget[m.id]*aw/tot:0;
+    halfTarget.B[m.id]=totalTarget[m.id]-halfTarget.A[m.id];
   });
 
-  // 足りない日を優先して埋める
-  const daysSorted=[...days].sort((a,b)=>{
+  // ---- 現在の採用数（手入力を反映）----
+  const apool={weekday:{},weekend:{}},ahalf={A:{},B:{}};
+  members.forEach(m=>{apool.weekday[m.id]=0;apool.weekend[m.id]=0;ahalf.A[m.id]=0;ahalf.B[m.id]=0;});
+  days.forEach(x=>{const pl=x.we?'weekend':'weekday';const h=half(x.d);result[x.d].forEach(mid=>{apool[pl][mid]++;ahalf[h][mid]++;});});
+  const ratioOf=(v,t)=>t>0?v/t:900+v;
+
+  // ---- 日の処理順：選択の余地がない日（応募≤募集）から ----
+  const order=[...days].sort((a,b)=>{
     const sa=members.filter(m=>getPref(m.id,a.d)!=='×').length-getDemand(a.d,a.we);
     const sb=members.filter(m=>getPref(m.id,b.d)!=='×').length-getDemand(b.d,b.we);
     return (sa-sb)||(Math.random()-.5);
   });
 
-  daysSorted.forEach(x=>{
-    const need=getDemand(x.d,x.we);
-    const pool=x.we?'weekend':'weekday';const remain=remainPool[pool];
+  order.forEach(x=>{
+    if(isConfD(x.d))return;
+    const need=getDemand(x.d,x.we);const pool=x.we?'weekend':'weekday';const h=half(x.d);
     const pick=result[x.d];
-    const tryAdd=(cands)=>{
-      for(const m of cands){
-        if(pick.length>=need)break;
-        if(pick.includes(m.id))continue;
-        if(wouldExceed(m.id,x.d,noConsec(m.id)))continue;
-        pick.push(m.id);
-        if(remain[m.id]>0)remain[m.id]--;
-      }
+    const addFrom=(pref)=>{
+      const cands=members.filter(m=>getPref(m.id,x.d)===pref&&!isConfM(m.id)&&!pick.includes(m.id)&&!wouldExceed(m.id,x.d,noConsec(m.id)));
+      cands.sort((a,b)=>
+        (ratioOf(apool[pool][a.id],poolTarget[pool][a.id])-ratioOf(apool[pool][b.id],poolTarget[pool][b.id]))
+        ||(ratioOf(ahalf[h][a.id],halfTarget[h][a.id])-ratioOf(ahalf[h][b.id],halfTarget[h][b.id]))
+        ||(Math.random()-.5));
+      for(const m of cands){if(pick.length>=need)break;pick.push(m.id);apool[pool][m.id]++;ahalf[h][m.id]++;}
     };
-    tryAdd(members.filter(m=>getPref(m.id,x.d)==='◯'&&remain[m.id]>0).sort((a,b)=>(remain[b.id]-remain[a.id])||(Math.random()-.5)));
-    tryAdd(members.filter(m=>getPref(m.id,x.d)==='◯').sort(()=>Math.random()-.5));
-    tryAdd(members.filter(m=>getPref(m.id,x.d)==='△').sort(()=>Math.random()-.5));
+    addFrom('◯');
+    if(pick.length<need)addFrom('△');
     result[x.d]=pick;
   });
 
@@ -350,7 +377,7 @@ function App(){
     year:new Date().getFullYear(),month:new Date().getMonth()+1,
     members:[],
     prefs:{},demand:{weekday:1,weekend:2,override:{}},
-    placed:{},times:{},availFrom:{}
+    placed:{},times:{},availFrom:{},confM:{},confD:{}
   };
   const [s,setS]=useState(init);
   const [filter,setFilter]=useState('all');
@@ -361,6 +388,8 @@ function App(){
   useEffect(()=>{try{localStorage.setItem('shiftmaker_viewer_url',viewerUrl);}catch(e){}},[viewerUrl]);
   const [importText,setImportText]=useState(''); // 管理者の貼り付け欄
   const [importMsg,setImportMsg]=useState(null);
+  const [confOpen,setConfOpen]=useState(false);
+  const [dayPop,setDayPop]=useState(null);
   useEffect(()=>store.save(s),[s]);
   const set=(patch)=>setS(p=>({...p,...patch}));
   const dim=daysInMonth(s.year,s.month);
@@ -368,6 +397,7 @@ function App(){
 
   const addMember=()=>{const name=(newName||'').trim();if(!name)return;set({members:[...s.members,{id:uid(),name,noConsec:0}]});setNewName('');};
   const delMember=(id)=>set({members:s.members.filter(m=>m.id!==id)});
+  const moveMember=(id,dir)=>{const a=[...s.members];const i=a.findIndex(m=>m.id===id);const j=i+dir;if(j<0||j>=a.length)return;const t=a[i];a[i]=a[j];a[j]=t;set({members:a});};
   const setConsec=(id,v)=>set({members:s.members.map(m=>m.id===id?{...m,noConsec:Math.max(0,parseInt(v)||0)}:m)});
 
   const getPref=(mid,d)=>(s.prefs[mid]&&s.prefs[mid][d])||'×';
@@ -381,11 +411,17 @@ function App(){
   const clearAll=()=>{if(window.confirm('カレンダーの採用をすべて消します。よろしいですか？'))set({placed:{}});};
 
   const isIn=(d,mid)=>!!(s.placed[d]&&s.placed[d][mid]);
-  const toggleAssign=(d,mid)=>{const dm={...(s.placed[d]||{})};if(dm[mid])delete dm[mid];else dm[mid]=true;set({placed:{...s.placed,[d]:dm}});};
-  const setTime=(mid,d,v)=>set({times:{...s.times,[`${mid}-${d}`]:v}});
+  const toggleAssign=(d,mid)=>{if(isConf(d,mid))return;const dm={...(s.placed[d]||{})};if(dm[mid])delete dm[mid];else dm[mid]=true;set({placed:{...s.placed,[d]:dm}});};
+  const setTime=(mid,d,v)=>{if(isConf(d,mid))return;set({times:{...s.times,[`${mid}-${d}`]:v}});};
   const prefClass=(p)=>p==='◯'?'pref-maru':p==='△'?'pref-sankaku':'pref-batsu';
 
   const getAvail=(mid,d)=>(s.availFrom&&s.availFrom[mid]&&s.availFrom[mid][d])||'';
+  const isConf=(d,mid)=>!!((s.confM&&s.confM[mid])||(s.confD&&s.confD[d]));
+  const toggleConfM=(mid)=>{const cm={...(s.confM||{})};if(cm[mid])delete cm[mid];else cm[mid]=true;set({confM:cm});};
+  const setConfD=(d,val)=>{const cd={...(s.confD||{})};if(val)cd[d]=true;else delete cd[d];set({confD:cd});};
+  const confAll=()=>{const cm={};s.members.forEach(m=>cm[m.id]=true);set({confM:cm});};
+  const clearConf=()=>{if(window.confirm('すべての確定（人・日）を解除します。よろしいですか？'))set({confM:{},confD:{}});};
+  const openDayPop=(e,d)=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();let left=r.left;if(left+170>window.innerWidth-8)left=window.innerWidth-178;if(left<8)left=8;let top=r.bottom+6;if(top+96>window.innerHeight-8)top=Math.max(8,r.top-100);setDayPop({d,top,left});};
 
   // ===== 管理者モード：提出コードの取り込み =====
   const importCode=()=>{
@@ -407,7 +443,7 @@ function App(){
   const buildShare=()=>{
     if(!s.members.length)return;
     const idx={};s.members.forEach((m,i)=>{idx[m.id]=i;});
-    const C={y:s.year,m:s.month,n:s.members.map(m=>m.name),a:{},t:{},p:{},v:{}};
+    const C={y:s.year,m:s.month,n:s.members.map(m=>m.name),a:{},t:{},p:{},v:{},dw:s.demand.weekday,de:s.demand.weekend,ov:s.demand.override||{}};
     days.forEach(x=>{
       const ins=s.members.filter(m=>isIn(x.d,m.id)).map(m=>idx[m.id]);
       if(ins.length)C.a[x.d]=ins;
@@ -431,7 +467,7 @@ function App(){
   // カレンダー週組み（月曜始まり）
   const weeks=useMemo(()=>{
     const first=new Date(s.year,s.month-1,1).getDay();
-    const offset=(first+6)%7; // 月=0
+    const offset=first; // 日=0
     const cells=[];for(let i=0;i<offset;i++)cells.push(null);
     days.forEach(x=>cells.push(x));
     while(cells.length%7!==0)cells.push(null);
@@ -503,7 +539,9 @@ function App(){
               {s.members.map(m=>(
                 <tr key={m.id}>
                   <td className="namecol">{m.name}
-                    <div style={{marginTop:2}}>
+                    <div style={{marginTop:2,display:'flex',gap:3,alignItems:'center',flexWrap:'wrap'}}>
+                      <button className="btn sm ghost" style={{padding:'1px 5px',fontSize:10}} onClick={()=>moveMember(m.id,-1)} title="上へ">▲</button>
+                      <button className="btn sm ghost" style={{padding:'1px 5px',fontSize:10}} onClick={()=>moveMember(m.id,1)} title="下へ">▼</button>
                       <button className="btn sm ghost" style={{padding:'1px 6px',fontSize:10}} onClick={()=>fillRow(m.id,'◯')}>全◯</button>{' '}
                       <button className="btn sm ghost" style={{padding:'1px 6px',fontSize:10}} onClick={()=>fillRow(m.id,'×')}>全×</button>
                     </div>
@@ -522,7 +560,17 @@ function App(){
         <div className="toolbar">
           <button className="btn accent" onClick={runFill} disabled={!s.members.length}>残りを自動で作成 ▶</button>
           <button className="btn ghost sm" onClick={clearAll} disabled={!s.members.length}>全部クリア</button>
-          <label className="fl" style={{flexDirection:'row',alignItems:'center',gap:8,marginLeft:'auto'}}>
+          <span className="cf-wrap" style={{marginLeft:'auto'}}>
+            <button className="btn ghost sm" onClick={()=>setConfOpen(o=>!o)} disabled={!s.members.length}>確定 {confOpen?'▲':'▼'}</button>
+            {confOpen&&(
+              <div className="cf-panel">
+                <div className="cf-row allrow"><button className="btn sm ghost" style={{padding:'2px 7px',fontSize:11}} onClick={confAll}>全員確定</button><button className="btn sm ghost" style={{padding:'2px 7px',fontSize:11}} onClick={clearConf}>全解除</button></div>
+                {s.members.map(m=>{const on=!!(s.confM&&s.confM[m.id]);return <div key={m.id} className="cf-row" onClick={()=>toggleConfM(m.id)}><input type="checkbox" readOnly checked={on}/>{m.name}</div>;})}
+                <div style={{fontSize:11,color:'var(--muted)',padding:'4px 8px'}}>日付の確定はカレンダーの日付をタップ</div>
+              </div>
+            )}
+          </span>
+          <label className="fl" style={{flexDirection:'row',alignItems:'center',gap:8}}>
             <span>絞り込み:</span>
             <select value={filter} onChange={e=>setFilter(e.target.value)}>
               <option value="all">全員</option>
@@ -530,10 +578,10 @@ function App(){
             </select>
           </label>
         </div>
-        <div className="hint" style={{marginTop:0,marginBottom:8}}>「残りを自動で作成」＝手で入れた所はそのまま、空いてる枠だけ公平に自動で埋めます（何も入れずに押せば全部自動）。各マス：名前／希望／希望時刻／採用／勤務時刻。薄い赤＝希望◯なのに未採用。</div>
-        {!s.members.length?<div className="empty">先に「2 メンバー」と「3 希望入力」を用意してください。</div>:(
+        <div className="hint" style={{marginTop:0,marginBottom:8}}>「残りを自動で作成」＝手で入れた所はそのまま、空いてる枠だけ公平に自動で埋めます（何も入れずに押せば全部自動）。各マス：名前／希望／希望時刻／採用／勤務時刻。色＝希望(薄オレンジ)／採用(濃オレンジ)。</div>
+        {!s.members.length?<div className="empty">先に「2 メンバー」と「3 希望入力」を用意してください。</div>:(<>
           <div className="cal" style={{gridTemplateColumns:'repeat(7,minmax(0,1fr))',width:'100%'}}>
-            {['月','火','水','木','金','土','日'].map((w,i)=><div key={w} className={"cal-head"+(i>=4?" we":"")}>{w}</div>)}
+            {['日','月','火','水','木','金','土'].map((w,i)=><div key={w} className={"cal-head"+(i===0||i>=5?" we":"")}>{w}</div>)}
             {weeks.map((week,wi)=>week.map((x,ci)=>{
               if(!x)return <div key={wi+'-'+ci} className="cal-cell blank"></div>;
               const def=(s.demand.override[x.d]??(x.we?s.demand.weekend:s.demand.weekday));
@@ -543,25 +591,36 @@ function App(){
               const inCount=s.members.filter(m=>isIn(x.d,m.id)).length;
               return (
                 <div key={x.d} className={"cal-cell"+(x.we?" we":"")}>
-                  <div className="cal-date"><span>{x.d}<span style={{fontSize:9,color:x.we?'var(--weekend)':'var(--muted)',marginLeft:2}}>{WD[x.dow]}</span></span>
+                  <div className={"cal-date"+(inCount<def?" short":"")}><span><span className="dnum" onClick={e=>openDayPop(e,x.d)}>{x.d}</span><span style={{fontSize:9,color:x.we?'var(--weekend)':'var(--muted)',marginLeft:2}}>{WD[x.dow]}</span>{s.confD&&s.confD[x.d]?<span className="lk">🔒</span>:null}</span>
                     <span className={"cap"+(over?" over":"")}>{inCount}/{def}</span></div>
                   {rows.map(m=>{
                     const p=getPref(m.id,x.d);const inn=isIn(x.d,m.id);const av=getAvail(m.id,x.d);
-                    const miss=p==='◯'&&!inn;
+                    const wish=(p==='◯'||p==='△');
                     const cc=p==='◯'?'cmaru':p==='△'?'csankaku':'cbatsu';
-                    return <div key={m.id} className={"mini-row"+(miss?' miss':'')}>
+                    const cf=isConf(x.d,m.id);
+                    return <div key={m.id} className="mini-row">
                       <span className={"mnm "+cc}>{m.name}</span>
-                      <span className={"mpf "+cc}>{p}</span>
-                      <span className="mav">{p!=='×'&&av?av:'·'}</span>
-                      <span className="mak" onClick={e=>{e.stopPropagation();toggleAssign(x.d,m.id);}} style={{color:inn?'var(--accent)':'var(--line)'}}>{inn?'◯':'・'}</span>
-                      <span className="mwt">{inn?<TimePicker value={s.times[`${m.id}-${x.d}`]||''} onChange={v=>setTime(m.id,x.d,v)}/>:<span className="dim">·</span>}</span>
+                      <span className={"mpf "+cc+(wish?' wishfill':'')}>{p}</span>
+                      <span className={"mav"+(wish?' wishfill':'')}>{p!=='×'&&av?av:'·'}</span>
+                      <span className={"mak"+(inn?(cf?' lockfill':' workfill'):'')} onClick={e=>{e.stopPropagation();toggleAssign(x.d,m.id);}} style={{color:inn?(cf?'#3b6fb0':'var(--accent)'):'var(--line)'}}>{inn?'◯':'・'}</span>
+                      <span className={"mwt"+(inn?(cf?' lockfill':' workfill'):'')}>{inn?<TimePicker value={s.times[`${m.id}-${x.d}`]||''} onChange={v=>setTime(m.id,x.d,v)}/>:<span className="dim">·</span>}</span>
                     </div>;
                   })}
                 </div>
               );
             }))}
           </div>
-        )}
+          {dayPop&&(<>
+            <div className="tp-ov" onClick={()=>setDayPop(null)}></div>
+            <div className="tp-pop" style={{top:dayPop.top,left:dayPop.left,width:'auto',padding:14}}>
+              <div className="tp-ttl">{s.month}月{dayPop.d}日 を…</div>
+              <div style={{display:'flex',gap:8,justifyContent:'center'}}>
+                <button className="btn ghost sm" onClick={()=>{setConfD(dayPop.d,false);setDayPop(null);}}>未確定</button>
+                <button className="btn accent sm" onClick={()=>{setConfD(dayPop.d,true);setDayPop(null);}}>確定</button>
+              </div>
+            </div>
+          </>)}
+        </>)}
       </div>
 
       {/* 5 個人サマリー */}

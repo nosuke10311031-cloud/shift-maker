@@ -28,17 +28,20 @@ select{font-family:inherit;font-size:15px;padding:9px 12px;border:1px solid #e3d
 .vcell{border:1px solid #e3ddd0;border-radius:8px;background:#fffdf8;min-height:52px;padding:3px;display:flex;flex-direction:column;gap:2px}
 .vcell.we{background:#fdf7f5}.vcell.blank{background:transparent;border:none}
 .vcd{font-family:'Zen Maru Gothic',sans-serif;font-weight:700;font-size:12px;display:flex;align-items:center}
+.vcd.short{background:#fce9a3;border-radius:4px}
 .vwd{font-size:9px;color:#8a8378;margin-left:2px}
 .vcnt{margin-left:auto;font-size:9px;color:#8a8378;font-weight:400}
-.vmini{display:grid;grid-template-columns:minmax(0,1fr) 11px 30px 12px minmax(0,1fr);gap:1px;align-items:center;font-size:9px;line-height:1.3;border-radius:2px}
+.vmini{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px;align-items:center;font-size:10px;line-height:1.4;border-radius:2px}
 .vmini.miss{background:#fdf3ee}
+.vmini .vwish{background:#eae7e0}
+.vmini .vwork{background:#f6c6a0}
 .vmn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .vmn.cmaru{color:#2f9e6f}.vmn.csankaku{color:#d99a26}.vmn.cbatsu{color:#c2bcb1;font-weight:400}
-.vmp{text-align:center;font-weight:700}
+.vmp{text-align:center;color:#7a756c;font-weight:700;padding:0 4px;border-radius:3px;white-space:nowrap}
 .vmp.cmaru{color:#2f9e6f}.vmp.csankaku{color:#d99a26}.vmp.cbatsu{color:#c2bcb1}
 .vma{font-size:8px;color:#d8602e;text-align:center;overflow:hidden;white-space:nowrap}
 .vmk{text-align:center;font-weight:700}
-.vmw{font-size:8px;color:#d8602e;text-align:center;overflow:hidden;white-space:nowrap}
+.vmw{text-align:center;color:#d8602e;font-weight:700;padding:0 4px;border-radius:3px;white-space:nowrap}
 .paste{display:flex;flex-direction:column;gap:10px}
 .paste textarea{font-family:monospace;font-size:12px;width:100%;min-height:96px;border:1px solid #e3ddd0;border-radius:10px;padding:10px;background:#fffdf8;color:#2b2724;resize:vertical}
 .btn{font-family:inherit;font-weight:700;font-size:14px;padding:10px 18px;border:none;border-radius:10px;background:#d8602e;color:#fff;cursor:pointer;align-self:flex-start}
@@ -57,7 +60,7 @@ select{font-family:inherit;font-size:15px;padding:9px 12px;border:1px solid #e3d
 (function(){
   "use strict";
   var WD=['日','月','火','水','木','金','土'];
-  var HEADS=['月','火','水','木','金','土','日'];
+  var HEADS=['日','月','火','水','木','金','土'];
   var D=null;           // 表示中のシフトデータ（展開後）
   var filter='all';     // 'all' または メンバーindex(number)
 
@@ -76,7 +79,8 @@ select{font-family:inherit;font-size:15px;padding:9px 12px;border:1px solid #e3d
       return {
         year:c.y, month:c.m,
         members:c.n.map(function(name,i){return {id:i,name:name};}),
-        assignments:c.a||{}, times:c.t||{}, prefs:c.p||{}, avail:c.v||{}
+        assignments:c.a||{}, times:c.t||{}, prefs:c.p||{}, avail:c.v||{},
+        dw:c.dw||0, de:c.de||0, ov:c.ov||{}
       };
     }catch(e){return null;}
   }
@@ -86,6 +90,7 @@ select{font-family:inherit;font-size:15px;padding:9px 12px;border:1px solid #e3d
   function prefOf(id,d){return (D.prefs[id]&&D.prefs[id][d])||'×';}
   function availOf(id,d){return (D.avail[id]&&D.avail[id][d])||'';}
   function isIn(id,d){var a=D.assignments[d]||[];return a.indexOf(id)>=0;}
+  function demandOf(d){var dow=new Date(D.year,D.month-1,d).getDay();var we=isWE(dow);return (D.ov&&D.ov[d]!=null)?D.ov[d]:(we?D.de:D.dw);}
 
   function renderShift(){
     var dim=new Date(D.year,D.month,0).getDate();
@@ -96,26 +101,29 @@ select{font-family:inherit;font-size:15px;padding:9px 12px;border:1px solid #e3d
     h+='</select></label>';
     h+='<button class="pbtn" id="fit">🔍 全体表示</button></div>';
     if(filter!=='all'){var cnt=0;for(var d0=1;d0<=dim;d0++){if(isIn(filter,d0))cnt++;}h+='<div class="card"><div class="cnt">'+esc(nameOf(filter))+' さんの出勤：<b>'+cnt+'</b>日</div></div>';}
-    h+='<div class="legend2">各マス：名前／希望／希望時刻／採用／勤務時刻　・　薄い赤＝希望◯なのに未採用　・　小さい時は「全体表示」や拡大で確認</div>';
+    h+='<div class="legend2">各マス：名前／希望(時刻 or ◯△×)／勤務時刻　・　オレンジ＝採用　・　小さい時は「全体表示」や拡大で確認</div>';
     h+='<div class="vcal">';
-    for(var k=0;k<7;k++){h+='<div class="vch'+(k>=4?' we':'')+'">'+HEADS[k]+'</div>';}
-    var first=new Date(D.year,D.month-1,1).getDay();var off=(first+6)%7;
+    for(var k=0;k<7;k++){h+='<div class="vch'+(k===0||k>=5?' we':'')+'">'+HEADS[k]+'</div>';}
+    var first=new Date(D.year,D.month-1,1).getDay();var off=first;
     for(var b=0;b<off;b++){h+='<div class="vcell blank"></div>';}
     for(var d=1;d<=dim;d++){
       var dow=new Date(D.year,D.month-1,d).getDay();var we=isWE(dow);
       var rows=filter==='all'?D.members:D.members.filter(function(mm){return mm.id===filter;});
       var inCount=0;for(var z=0;z<D.members.length;z++){if(isIn(D.members[z].id,d))inCount++;}
       h+='<div class="vcell'+(we?' we':'')+'">';
-      h+='<div class="vcd">'+d+'<span class="vwd">'+WD[dow]+'</span><span class="vcnt">'+inCount+'</span></div>';
+      var def=demandOf(d);
+      var short=def>0&&inCount<def;
+      var cntHtml=def>0?(inCount+'/'+def):inCount;
+      h+='<div class="vcd'+(short?' short':'')+'">'+d+'<span class="vwd">'+WD[dow]+'</span><span class="vcnt">'+cntHtml+'</span></div>';
       for(var r=0;r<rows.length;r++){
         var id=rows[r].id;var p=prefOf(id,d);var inn=isIn(id,d);var av=availOf(id,d);var tm=timeOf(id,d);
-        var miss=p==='◯'&&!inn;var cc=pcls(p);
-        h+='<div class="vmini'+(miss?' miss':'')+'">';
+        var cc=pcls(p);
+        var wishCell=(p!=='×'&&av)?av:p;
+        var workCell=inn?(tm||'◯'):'·';
+        h+='<div class="vmini">';
         h+='<span class="vmn '+cc+'">'+esc(nameOf(id))+'</span>';
-        h+='<span class="vmp '+cc+'">'+p+'</span>';
-        h+='<span class="vma">'+((p!=='×'&&av)?av:'·')+'</span>';
-        h+='<span class="vmk" style="color:'+(inn?'#d8602e':'#dcd6c8')+'">'+(inn?'◯':'・')+'</span>';
-        h+='<span class="vmw">'+(tm||'·')+'</span>';
+        h+='<span class="vmp vwish">'+wishCell+'</span>';
+        h+='<span class="vmw'+(inn?' vwork':'')+'">'+workCell+'</span>';
         h+='</div>';
       }
       h+='</div>';

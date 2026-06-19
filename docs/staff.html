@@ -117,7 +117,7 @@
 (function(){
   "use strict";
   var WD=['日','月','火','水','木','金','土'];
-  var HEADS=['月','火','水','木','金','土','日'];
+  var HEADS=['日','月','火','水','木','金','土'];
   var HOURS=[];for(var i=0;i<24;i++)HOURS.push(('0'+i).slice(-2));
   var MINS=['00','15','30','45'];
   var WH=38;
@@ -151,9 +151,9 @@
   // ---- カレンダー描画 ----
   function renderCal(){
     var y=S.year,m=S.month,n=dim(y,m);
-    var first=new Date(y,m-1,1).getDay();var off=(first+6)%7;
+    var first=new Date(y,m-1,1).getDay();var off=first;
     var h='';
-    for(var k=0;k<7;k++){h+='<div class="ch'+(k>=4?' we':'')+'">'+HEADS[k]+'</div>';}
+    for(var k=0;k<7;k++){h+='<div class="ch'+(k===0||k>=5?' we':'')+'">'+HEADS[k]+'</div>';}
     for(var b=0;b<off;b++){h+='<div class="icell blank"></div>';}
     for(var d=1;d<=n;d++){
       var dow=new Date(y,m-1,d).getDay();var we=isWE(dow);var p=pref(d);var av=avail(d);
