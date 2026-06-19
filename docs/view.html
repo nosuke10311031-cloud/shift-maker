@@ -31,17 +31,13 @@ select{font-family:inherit;font-size:15px;padding:9px 12px;border:1px solid #e3d
 .vcd.short{background:#fce9a3;border-radius:4px}
 .vwd{font-size:9px;color:#8a8378;margin-left:2px}
 .vcnt{margin-left:auto;font-size:9px;color:#8a8378;font-weight:400}
-.vmini{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px;align-items:center;font-size:10px;line-height:1.4;border-radius:2px}
-.vmini.miss{background:#fdf3ee}
-.vmini .vwish{background:#eae7e0}
-.vmini .vwork{background:#f6c6a0}
-.vmn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.vmt{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:stretch;font-size:9px;line-height:1.7;margin-top:2px;column-gap:2px}
+.vmt>span{border-bottom:1px solid #eee7da;padding:0 3px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vmn{font-weight:600}
 .vmn.cmaru{color:#2f9e6f}.vmn.csankaku{color:#d99a26}.vmn.cbatsu{color:#c2bcb1;font-weight:400}
-.vmp{text-align:center;color:#7a756c;font-weight:700;padding:0 4px;border-radius:3px;white-space:nowrap}
-.vmp.cmaru{color:#2f9e6f}.vmp.csankaku{color:#d99a26}.vmp.cbatsu{color:#c2bcb1}
-.vma{font-size:8px;color:#d8602e;text-align:center;overflow:hidden;white-space:nowrap}
-.vmk{text-align:center;font-weight:700}
-.vmw{text-align:center;color:#d8602e;font-weight:700;padding:0 4px;border-radius:3px;white-space:nowrap}
+.vmp{text-align:center;color:#7a756c;background:#ece9e2}
+.vmw{text-align:center;color:#d8602e;font-weight:700}
+.vmw.vwork{background:#f6c6a0}
 .paste{display:flex;flex-direction:column;gap:10px}
 .paste textarea{font-family:monospace;font-size:12px;width:100%;min-height:96px;border:1px solid #e3ddd0;border-radius:10px;padding:10px;background:#fffdf8;color:#2b2724;resize:vertical}
 .btn{font-family:inherit;font-weight:700;font-size:14px;padding:10px 18px;border:none;border-radius:10px;background:#d8602e;color:#fff;cursor:pointer;align-self:flex-start}
@@ -115,17 +111,17 @@ select{font-family:inherit;font-size:15px;padding:9px 12px;border:1px solid #e3d
       var short=def>0&&inCount<def;
       var cntHtml=def>0?(inCount+'/'+def):inCount;
       h+='<div class="vcd'+(short?' short':'')+'">'+d+'<span class="vwd">'+WD[dow]+'</span><span class="vcnt">'+cntHtml+'</span></div>';
+      h+='<div class="vmt">';
       for(var r=0;r<rows.length;r++){
         var id=rows[r].id;var p=prefOf(id,d);var inn=isIn(id,d);var av=availOf(id,d);var tm=timeOf(id,d);
         var cc=pcls(p);
         var wishCell=(p!=='×'&&av)?av:p;
         var workCell=inn?(tm||'◯'):'·';
-        h+='<div class="vmini">';
         h+='<span class="vmn '+cc+'">'+esc(nameOf(id))+'</span>';
-        h+='<span class="vmp vwish">'+wishCell+'</span>';
+        h+='<span class="vmp">'+wishCell+'</span>';
         h+='<span class="vmw'+(inn?' vwork':'')+'">'+workCell+'</span>';
-        h+='</div>';
       }
+      h+='</div>';
       h+='</div>';
     }
     h+='</div>';
