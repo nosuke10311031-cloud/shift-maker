@@ -94,9 +94,10 @@
       <label class="fl">名前<input id="i-name" placeholder="例：佐藤"></label>
       <label class="fl">年<input id="i-year" type="number"></label>
       <label class="fl">月<select id="i-month"></select></label>
-      <label class="fl">連勤禁止<input id="i-nc" type="number" min="0" value="0"></label>
+      <label class="fl">連勤禁止<input id="i-nc" type="number" min="0" value="" placeholder="—"></label>
+      <label class="fl">最大勤務日数<input id="i-md" type="number" min="0" value="" placeholder="—"></label>
     </div>
-    <div class="hint">連勤禁止：「3」で3連勤を禁止（＝最大2連勤）。制限なしは 0。月は管理者の指示に合わせてください。</div>
+    <div class="hint">連勤禁止：「3」で3連勤を禁止（＝最大2連勤）。最大勤務日数：この月に入れる上限。どちらも空欄（—）＝制限なし。月は管理者の指示に合わせてください。</div>
   </div>
 
   <div class="card">
@@ -141,17 +142,18 @@
     save:function(s){try{localStorage.setItem('shiftmaker_staff',JSON.stringify(s));}catch(e){}}
   };
   var now=new Date();
-  var S=store.load()||{name:'',year:now.getFullYear(),month:now.getMonth()+1,nc:0,prefs:{},avail:{}};
+  var S=store.load()||{name:'',year:now.getFullYear(),month:now.getMonth()+1,nc:0,md:0,prefs:{},avail:{}};
   function persist(){store.save(S);}
 
   // ---- 情報フォーム初期化 ----
-  var elName=document.getElementById('i-name'),elYear=document.getElementById('i-year'),elMonth=document.getElementById('i-month'),elNc=document.getElementById('i-nc');
+  var elName=document.getElementById('i-name'),elYear=document.getElementById('i-year'),elMonth=document.getElementById('i-month'),elNc=document.getElementById('i-nc'),elMd=document.getElementById('i-md');
   for(var mo=1;mo<=12;mo++){var op=document.createElement('option');op.value=mo;op.textContent=mo+'月';elMonth.appendChild(op);}
-  elName.value=S.name;elYear.value=S.year;elMonth.value=S.month;elNc.value=S.nc;
+  elName.value=S.name;elYear.value=S.year;elMonth.value=S.month;elNc.value=S.nc||'';elMd.value=S.md||'';
   elName.oninput=function(){S.name=this.value;persist();};
   elYear.onchange=function(){S.year=parseInt(this.value)||S.year;persist();renderCal();};
   elMonth.onchange=function(){S.month=parseInt(this.value);persist();renderCal();};
-  elNc.onchange=function(){S.nc=Math.max(0,parseInt(this.value)||0);persist();};
+  elNc.oninput=elNc.onchange=function(){S.nc=Math.max(0,parseInt(this.value)||0);if(!S.nc)this.value='';persist();};
+  elMd.oninput=elMd.onchange=function(){S.md=Math.max(0,parseInt(this.value)||0);if(!S.md)this.value='';persist();};
 
   // ---- 希望ヘルパ ----
   function pref(d){return S.prefs[d]||'×';}
@@ -228,7 +230,7 @@
   function buildCode(){
     var area=document.getElementById('sub-area');
     if(!S.name.trim()){area.innerHTML='<div class="msg ng">先に名前を入力してください。</div>';return;}
-    var obj={t:'shift-pref',name:S.name.trim(),y:S.year,m:S.month,nc:S.nc||0,p:S.prefs,a:S.avail};
+    var obj={t:'shift-pref',name:S.name.trim(),y:S.year,m:S.month,nc:S.nc||0,md:S.md||0,p:S.prefs,a:S.avail};
     var code=encodeSubmission(obj);
     area.innerHTML='<div class="qrwrap"><div style="flex:1 1 280px">'
       +'<div class="hint" style="margin-top:0;margin-bottom:6px">このコードをコピーして管理者にLINE等で送ってください：</div>'
