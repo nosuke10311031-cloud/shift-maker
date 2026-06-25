@@ -53,7 +53,10 @@
   .qrwrap{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-top:12px}
   #qrbox{background:#fff;padding:8px;border-radius:10px;border:1px solid var(--line)}
   .msg{margin-top:10px;padding:10px 14px;border-radius:10px;font-size:13px}
+  .msg.ok{background:var(--maru-bg);color:#1f6e4e}
   .msg.ng{background:#fbe4e4;color:#a33}
+  .editbox{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+  .editbox textarea{font-family:monospace;font-size:12px;line-height:1.5;flex:1 1 320px;min-height:74px;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--paper);color:var(--ink);resize:vertical}
   @media(max-width:600px){
     .wrap{padding:14px 3px 60px}
     .card{padding:10px 3px}
@@ -87,6 +90,16 @@
 <div class="wrap" id="wrap">
   <h1><span class="dot"></span>シフト希望入力</h1>
   <div class="sub">あなたの希望を入力して、提出コードを管理者に送ってください。</div>
+
+  <div class="card">
+    <h2><span class="num">↺</span>前回の提出コードから再編集</h2>
+    <div class="editbox">
+      <textarea id="edit-code" placeholder="前に作った提出コードをここに貼り付け"></textarea>
+      <button class="btn ghost" data-act="load-code">読み込む</button>
+    </div>
+    <div class="hint">以前作った提出コードを読み込むと、名前・年月・希望・時刻を復元して続きから編集できます。</div>
+    <div id="edit-msg"></div>
+  </div>
 
   <div class="card">
     <h2><span class="num">1</span>あなたの情報</h2>
@@ -136,6 +149,7 @@
   function dim(y,m){return new Date(y,m,0).getDate();}
   function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function encodeSubmission(obj){try{return btoa(String.fromCharCode.apply(null,new TextEncoder().encode(JSON.stringify(obj))));}catch(e){return '';}}
+  function decodeSubmission(str){try{var clean=(str||'').replace(/\s+/g,'');var bytes=Uint8Array.from(atob(clean),function(c){return c.charCodeAt(0);});return JSON.parse(new TextDecoder().decode(bytes));}catch(e){return null;}}
 
   var store={
     load:function(){try{var r=localStorage.getItem('shiftmaker_staff');return r?JSON.parse(r):null;}catch(e){return null;}},
@@ -148,7 +162,10 @@
   // ---- 情報フォーム初期化 ----
   var elName=document.getElementById('i-name'),elYear=document.getElementById('i-year'),elMonth=document.getElementById('i-month'),elNc=document.getElementById('i-nc'),elMd=document.getElementById('i-md');
   for(var mo=1;mo<=12;mo++){var op=document.createElement('option');op.value=mo;op.textContent=mo+'月';elMonth.appendChild(op);}
-  elName.value=S.name;elYear.value=S.year;elMonth.value=S.month;elNc.value=S.nc||'';elMd.value=S.md||'';
+  function syncInfoForm(){
+    elName.value=S.name||'';elYear.value=S.year;elMonth.value=S.month;elNc.value=S.nc||'';elMd.value=S.md||'';
+  }
+  syncInfoForm();
   elName.oninput=function(){S.name=this.value;persist();};
   elYear.onchange=function(){S.year=parseInt(this.value)||S.year;persist();renderCal();};
   elMonth.onchange=function(){S.month=parseInt(this.value);persist();renderCal();};
@@ -244,6 +261,29 @@
     else{qb.textContent='(QR利用不可・コードをコピーしてください)';}
   }
 
+  // ---- 提出コードから再編集 ----
+  function loadCode(){
+    var msg=document.getElementById('edit-msg');
+    var raw=document.getElementById('edit-code').value;
+    var obj=decodeSubmission(raw);
+    if(!obj||obj.t!=='shift-pref'){
+      msg.innerHTML='<div class="msg ng">コードを読み取れませんでした。コピーし直して、もう一度貼り付けてください。</div>';
+      return;
+    }
+    S={
+      name:obj.name||'',
+      year:parseInt(obj.y)||now.getFullYear(),
+      month:parseInt(obj.m)||now.getMonth()+1,
+      nc:Math.max(0,parseInt(obj.nc)||0),
+      md:Math.max(0,parseInt(obj.md)||0),
+      prefs:obj.p&&typeof obj.p==='object'?obj.p:{},
+      avail:obj.a&&typeof obj.a==='object'?obj.a:{}
+    };
+    persist();syncInfoForm();renderCal();
+    document.getElementById('sub-area').innerHTML='';
+    msg.innerHTML='<div class="msg ok">'+esc(S.name||'このコード')+' の希望を読み込みました。下の内容を直して、もう一度「提出コードを作成」を押してください。</div>';
+  }
+
   // ---- 全体表示 ----
   function toggleFit(){
     var w=document.getElementById('wrap');
@@ -260,6 +300,7 @@
     else if(act==='time')openWheel(parseInt(t.dataset.d));
     else if(act==='fill')fillAll(t.dataset.v);
     else if(act==='build')buildCode();
+    else if(act==='load-code')loadCode();
     else if(act==='fit')toggleFit();
   });
 

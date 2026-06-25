@@ -22,21 +22,25 @@ select{font-family:inherit;font-size:15px;padding:9px 12px;border:1px solid #e3d
 .empty{color:#8a8378;padding:10px 4px}
 .legend2{font-size:11px;color:#8a8378;margin:6px 0 12px;line-height:1.5}
 .foot{color:#a89f90;font-size:11px;margin-top:24px;text-align:center}
-.vcal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;width:100%;min-width:0}
-.vch{text-align:center;font-size:11px;font-weight:700;color:#8a8378;padding:3px 0}
-.vch.we{color:#bb4d6e}
-.vcell{border:1px solid #e3ddd0;border-radius:8px;background:#fffdf8;min-width:0;min-height:52px;padding:3px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
-.vcell.we{background:#fdf7f5}.vcell.blank{background:transparent;border:none}
-.vcd{font-family:'Zen Maru Gothic',sans-serif;font-weight:700;font-size:12px;display:flex;align-items:center}
-.vcd.short{background:#fce9a3;border-radius:4px}
-.vwd{font-size:9px;color:#8a8378;margin-left:2px}
-.vcnt{margin-left:auto;font-size:9px;color:#8a8378;font-weight:400}
-.vmt{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.35fr) minmax(0,1.35fr);align-items:stretch;font-size:8px;line-height:1.4;margin-top:2px;border-top:1px solid #eee7da;border-left:1px solid #eee7da}
-.vmt>span{border-right:1px solid #eee7da;border-bottom:1px solid #eee7da;padding:1px;min-width:0;white-space:nowrap;overflow:hidden;text-align:center}
-.vmt .vmn{font-weight:600;white-space:normal;overflow-wrap:anywhere;text-align:left}
-.vmn.cmaru{color:#2f9e6f}.vmn.csankaku{color:#d99a26}.vmn.cbatsu{color:#c2bcb1;font-weight:400}
-.vmp{text-align:center;color:#7a756c;background:#ece9e2}
-.vmw{text-align:center;color:#d8602e;font-weight:700}
+.vweeks{display:flex;flex-direction:column;gap:10px;width:100%;min-width:0}
+.vweek{display:grid;grid-template-columns:minmax(44px,.9fr) repeat(7,minmax(0,1fr));gap:0;width:100%;min-width:0;align-items:stretch}
+.vnamecol,.vcell{min-width:0;background:#fffdf8;border:1.5px solid #d8cfbd;border-left-width:0;overflow:hidden}
+.vnamecol{border-left-width:1.5px}
+.vcell.we{background:#fdf7f5}
+.vcell.blank{background:transparent;border-color:transparent}
+.vhead,.vnamehead{height:24px;border-bottom:1px solid #eee7da}
+.vhead{font-family:'Zen Maru Gothic',sans-serif;font-weight:700;font-size:11px;line-height:1.2;padding:3px;display:flex;justify-content:space-between;align-items:center}
+.vhead.short{background:#fce9a3}
+.vdw{font-size:8px;color:#8a8378;margin-left:1px}
+.vcnt{margin-left:auto;font-family:'Zen Kaku Gothic New',sans-serif;font-size:8px;color:#8a8378;font-weight:400}
+.vname{height:19px;font-weight:700;font-size:9px;line-height:1.2;padding:1px 2px;display:flex;align-items:center;white-space:nowrap;border-bottom:1px solid #eee7da;overflow:hidden}
+.vname.cmaru{color:#2f9e6f}.vname.csankaku{color:#d99a26}.vname.cbatsu{color:#c2bcb1;font-weight:500}
+.vline{height:19px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);font-size:8px;line-height:1.15;text-align:center;border-bottom:1px solid #eee7da}
+.vline>span{min-width:0;padding:1px;display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden}
+.vline>span+span{border-left:1px solid #eee7da}
+.vmp{color:#7a756c;background:#ece9e2}
+.vmp.cmaru{color:#2f9e6f}.vmp.csankaku{color:#d99a26}.vmp.cbatsu{color:#c2bcb1}
+.vmw{color:#d8602e;font-weight:700}
 .vmw.vwork{background:#f6c6a0}
 .paste{display:flex;flex-direction:column;gap:10px}
 .paste textarea{font-family:monospace;font-size:12px;width:100%;min-height:96px;border:1px solid #e3ddd0;border-radius:10px;padding:10px;background:#fffdf8;color:#2b2724;resize:vertical}
@@ -44,13 +48,14 @@ select{font-family:inherit;font-size:15px;padding:9px 12px;border:1px solid #e3d
 .err{background:#fbe4e4;color:#a33;padding:10px 14px;border-radius:10px;font-size:13px}
 @media(max-width:600px){
 body{padding:10px 2px 50px}
-.card{padding:10px 4px}
-.vcal{gap:1px}
-.vch{font-size:8px;padding:2px 0}
-.vcell{border-radius:3px;padding:1px;gap:1px}
-.vcd{font-size:8px;line-height:1.2}.vwd,.vcnt{font-size:6px}
-.vmt{font-size:5px;line-height:1.15;margin-top:1px}
-.vmt>span{padding:1px 0}
+.card{padding:10px 3px}
+.vweeks{gap:6px}
+.vweek{grid-template-columns:minmax(38px,.9fr) repeat(7,minmax(0,1fr))}
+.vhead,.vnamehead{height:22px}
+.vhead{font-size:8px;padding:2px 1px}.vdw,.vcnt{font-size:6px}
+.vname{height:18px;font-size:7px;padding:1px}
+.vline{height:18px;font-size:6px}
+.vline>span{padding:1px 0}
 }
 </style>
 </head>
@@ -107,37 +112,58 @@ body{padding:10px 2px 50px}
     h+='</select></label>';
     h+='<button class="pbtn" id="fit">🔍 全体表示</button></div>';
     if(filter!=='all'){var cnt=0;for(var d0=1;d0<=dim;d0++){if(isIn(filter,d0))cnt++;}h+='<div class="card"><div class="cnt">'+esc(nameOf(filter))+' さんの出勤：<b>'+cnt+'</b>日</div></div>';}
-    h+='<div class="legend2">各マス：名前／希望(時刻 or ◯△×)／勤務時刻　・　オレンジ＝採用　・　小さい時は「全体表示」や拡大で確認</div>';
-    h+='<div class="vcal">';
-    for(var k=0;k<7;k++){h+='<div class="vch'+(k===0||k>=5?' we':'')+'">'+HEADS[k]+'</div>';}
+    h+='<div class="legend2">左：名前　／　各日マス：希望(時刻 or ◯△×)・勤務時間　・　オレンジ＝採用　・　小さい時は「全体表示」や拡大で確認</div>';
+    h+='<div class="vweeks">';
     var first=new Date(D.year,D.month-1,1).getDay();var off=first;
-    for(var b=0;b<off;b++){h+='<div class="vcell blank"></div>';}
-    for(var d=1;d<=dim;d++){
-      var dow=new Date(D.year,D.month-1,d).getDay();var we=isWE(dow);
-      var rows=filter==='all'?D.members:D.members.filter(function(mm){return mm.id===filter;});
-      var inCount=0;for(var z=0;z<D.members.length;z++){if(isIn(D.members[z].id,d))inCount++;}
-      h+='<div class="vcell'+(we?' we':'')+'">';
-      var def=demandOf(d);
-      var short=def>0&&inCount<def;
-      var cntHtml=def>0?(inCount+'/'+def):inCount;
-      h+='<div class="vcd'+(short?' short':'')+'">'+d+'<span class="vwd">'+WD[dow]+'</span><span class="vcnt">'+cntHtml+'</span></div>';
-      h+='<div class="vmt">';
-      for(var r=0;r<rows.length;r++){
-        var id=rows[r].id;var p=prefOf(id,d);var inn=isIn(id,d);var av=availOf(id,d);var tm=timeOf(id,d);
-        var cc=pcls(p);
-        var wishCell=(p!=='×'&&av)?av:p;
-        var workCell=inn?(tm||'·'):'·';
-        h+='<span class="vmn '+cc+'">'+esc(nameOf(id))+'</span>';
-        h+='<span class="vmp">'+wishCell+'</span>';
-        h+='<span class="vmw'+(inn?' vwork':'')+'">'+workCell+'</span>';
+    var cells=[];for(var b=0;b<off;b++){cells.push(null);}
+    for(var dd=1;dd<=dim;dd++){cells.push(dd);}
+    while(cells.length%7!==0){cells.push(null);}
+    var rows=filter==='all'?D.members:D.members.filter(function(mm){return mm.id===filter;});
+    for(var wi=0;wi<cells.length;wi+=7){
+      var week=cells.slice(wi,wi+7);
+      h+='<div class="vweek">';
+      h+='<div class="vnamecol"><div class="vnamehead"></div>';
+      for(var nr=0;nr<rows.length;nr++){
+        var nid=rows[nr].id;var best='×';
+        for(var npk=0;npk<7;npk++){var npd=week[npk];if(npd){var npp=prefOf(nid,npd);if(npp==='◯'){best='◯';break;}if(npp==='△')best='△';}}
+        h+='<div class="vname '+pcls(best)+'">'+esc(nameOf(nid))+'</div>';
       }
       h+='</div>';
+      for(var k=0;k<7;k++){
+        var d=week[k];
+        if(!d){h+='<div class="vcell blank"></div>';continue;}
+        var dow=new Date(D.year,D.month-1,d).getDay();var we=isWE(dow);
+        var inCount=0;for(var z=0;z<D.members.length;z++){if(isIn(D.members[z].id,d))inCount++;}
+        var def=demandOf(d);var short=def>0&&inCount<def;var cntHtml=def>0?(inCount+'/'+def):inCount;
+        h+='<div class="vcell'+(we?' we':'')+'">';
+        h+='<div class="vhead'+(short?' short':'')+'"><span>'+d+'<span class="vdw">'+WD[dow]+'</span></span><span class="vcnt">'+cntHtml+'</span></div>';
+        for(var r=0;r<rows.length;r++){
+          var id=rows[r].id;var p=prefOf(id,d);var inn=isIn(id,d);var av=availOf(id,d);var tm=timeOf(id,d);
+          var wishCell=(p!=='×'&&av)?av:p;
+          var workCell=inn?(tm||''):'';
+          h+='<div class="vline">';
+          h+='<span class="vmp '+pcls(p)+'">'+wishCell+'</span>';
+          h+='<span class="vmw'+(inn?' vwork':'')+'">'+workCell+'</span>';
+          h+='</div>';
+        }
+        h+='</div>';
+      }
       h+='</div>';
     }
     h+='</div>';
     document.getElementById('app').innerHTML=h;
     document.getElementById('f').onchange=function(e){filter=e.target.value==='all'?'all':parseInt(e.target.value,10);renderShift();window.scrollTo(0,0);};
     document.getElementById('fit').onclick=toggleFit;
+    fitNames();
+  }
+
+  // 左端の名前を1行に収まるよう自動縮小（縦折り返し防止）
+  function fitNames(){
+    var els=[].slice.call(document.querySelectorAll('.vname'));
+    if(!els.length)return;
+    els.forEach(function(el){el.style.fontSize='';});
+    var want=els.map(function(el){var base=parseFloat(getComputedStyle(el).fontSize)||9;var sw=el.scrollWidth,cw=el.clientWidth;return (cw>2&&sw>cw)?Math.max(1,base*(cw-1)/sw):0;});
+    els.forEach(function(el,i){if(want[i])el.style.fontSize=want[i].toFixed(1)+'px';});
   }
 
   function toggleFit(){

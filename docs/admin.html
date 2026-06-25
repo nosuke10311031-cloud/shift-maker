@@ -113,10 +113,10 @@
   .mtw .tp-btn{width:100%;padding:2px 1px;font-size:9px;text-align:center}
   .avh{width:100%;font-size:9px;color:var(--sankaku);padding-left:13px}
   /* カレンダー各マスの5列ミニ行 */
-  .mini-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.35fr) minmax(0,1.25fr) minmax(0,.35fr) minmax(0,1.25fr);gap:0;align-items:stretch;font-size:8px;line-height:1.25;padding:0;border-top:1px solid #eee7da;border-left:1px solid #eee7da}
-  .mini-row>span{min-width:0;border-right:1px solid #eee7da;border-bottom:1px solid #eee7da;padding:1px;display:flex;align-items:center;justify-content:center}
+  .mini-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.35fr) minmax(0,1.25fr) minmax(0,.35fr) minmax(0,1.25fr);gap:0;align-items:stretch;font-size:8px;line-height:1.25;min-height:14px;padding:0;border-top:1px solid #eee7da;border-left:1px solid #eee7da}
+  .mini-row>span{min-width:0;border-right:1px solid #eee7da;border-bottom:1px solid #eee7da;padding:1px;display:flex;align-items:center;justify-content:center;overflow:hidden}
   .mini-row.miss{background:#fdf3ee}
-  .mini-row .mnm{overflow-wrap:anywhere;white-space:normal;font-weight:600;justify-content:flex-start}
+  .mini-row .mnm{white-space:nowrap;overflow:hidden;font-weight:600;justify-content:flex-start}
   .mini-row .mnm.cmaru{color:var(--maru)}.mini-row .mnm.csankaku{color:var(--sankaku)}.mini-row .mnm.cbatsu{color:var(--batsu);font-weight:400}
   .mini-row .mpf{text-align:center;font-weight:700}
   .mini-row .mpf.cmaru{color:var(--maru)}.mini-row .mpf.csankaku{color:var(--sankaku)}.mini-row .mpf.cbatsu{color:var(--batsu)}
@@ -124,7 +124,7 @@
   .mini-row .mak{text-align:center;font-weight:700;cursor:pointer}
   .mini-row .mwt{min-width:0;overflow:hidden;text-align:center}
   .mini-row .mwt .tp{display:block;width:100%}
-  .mini-row .mwt .tp-btn{width:100%;padding:1px;font-size:8px}
+  .mini-row .mwt .tp-btn{width:100%;height:100%;min-height:12px;padding:0 1px;font-size:8px;line-height:1.1}
   .mini-row .mwt .dim,.mini-row .mav.dim{color:#cdc6b8}
   .mini-row .wishfill{background:#fcebdd}
   .mini-row .workfill{background:#f6c6a0}
@@ -218,16 +218,16 @@
     .cal-cell{border-radius:3px;padding:1px;gap:1px}
     .cal-date{font-size:8px;line-height:1.2}
     .cal-date .cap{font-size:6px}
-    .mini-row{font-size:5px;line-height:1.1}
+    .mini-row{font-size:5px;line-height:1.1;min-height:11px}
     .mini-row>span{padding:1px 0}
-    .mini-row .mav,.mini-row .mwt .tp-btn{font-size:5px}
+    .mini-row .mav,.mini-row .mwt .tp-btn{font-size:5px;min-height:9px}
   }
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState,useEffect,useMemo,useRef} = React;
+const {useState,useEffect,useMemo,useRef,useLayoutEffect} = React;
 const store={load(){try{const r=localStorage.getItem('shiftmaker_v3');return r?JSON.parse(r):null}catch(e){return null}},save(s){try{localStorage.setItem('shiftmaker_v3',JSON.stringify(s))}catch(e){}}};
 const WD=['日','月','火','水','木','金','土'];
 const isWeekend=(dow)=>dow===5||dow===6||dow===0;            // 金土日
@@ -467,6 +467,18 @@ function App(){
   const [dayPop,setDayPop]=useState(null);
   const [memPop,setMemPop]=useState(null);
   useEffect(()=>store.save(s),[s]);
+  // カレンダー(④)の名前を1行に収まるよう自動縮小（折り返し防止）
+  useLayoutEffect(()=>{
+    var els=[].slice.call(document.querySelectorAll('.shift-card .mnm'));
+    if(!els.length)return;
+    els.forEach(function(el){el.style.fontSize='';});
+    var want=els.map(function(el){
+      var base=parseFloat(getComputedStyle(el).fontSize)||8;
+      var sw=el.scrollWidth,cw=el.clientWidth;
+      return (cw>2&&sw>cw)?Math.max(4,base*(cw-1)/sw):0;
+    });
+    els.forEach(function(el,i){if(want[i])el.style.fontSize=want[i].toFixed(1)+'px';});
+  });
   const set=(patch)=>setS(p=>({...p,...patch}));
   const dim=daysInMonth(s.year,s.month);
   const days=useMemo(()=>{const a=[];for(let d=1;d<=dim;d++){const dow=new Date(s.year,s.month-1,d).getDay();a.push({d,dow,we:isWeekend(dow)});}return a;},[s.year,s.month,dim]);
