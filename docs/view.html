@@ -47,6 +47,8 @@ select{font-family:inherit;font-size:15px;padding:9px 12px;border:1px solid #e3d
 .paste textarea{font-family:monospace;font-size:12px;width:100%;min-height:96px;border:1px solid #e3ddd0;border-radius:10px;padding:10px;background:#fffdf8;color:#2b2724;resize:vertical}
 .btn{font-family:inherit;font-weight:700;font-size:14px;padding:10px 18px;border:none;border-radius:10px;background:#d8602e;color:#fff;cursor:pointer;align-self:flex-start}
 .err{background:#fbe4e4;color:#a33;padding:10px 14px;border-radius:10px;font-size:13px}
+.photo-msg{display:inline-block;margin-left:8px;font-size:12px;color:#8a8378}
+.photo-msg a{color:#d8602e;font-weight:700}
 @media(max-width:600px){
 body{padding:10px 2px 50px}
 .card{padding:10px 3px}
@@ -75,6 +77,7 @@ body{padding:10px 2px 50px}
   var HEADS=['日','月','火','水','木','金','土'];
   var D=null;           // 表示中のシフトデータ（展開後）
   var filter='all';     // 'all' または メンバーindex(number)
+  var lastPhotoUrl=null;
 
   function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function isWE(dow){return dow===5||dow===6||dow===0;}
@@ -111,7 +114,7 @@ body{padding:10px 2px 50px}
     h+='<div class="bar"><label>表示する人：<select id="f"><option value="all">全員</option>';
     for(var i=0;i<D.members.length;i++){var m=D.members[i];h+='<option value="'+m.id+'"'+(String(filter)===String(m.id)?' selected':'')+'>'+esc(m.name)+'</option>';}
     h+='</select></label>';
-    h+='<button class="pbtn" id="fit">🔍 全体表示</button> <button class="pbtn" id="photo">写真を保存</button></div>';
+    h+='<button class="pbtn" id="fit">🔍 全体表示</button> <button class="pbtn" id="photo">写真を保存</button><span class="photo-msg" id="photo-msg"></span></div>';
     if(filter!=='all'){var cnt=0;for(var d0=1;d0<=dim;d0++){if(isIn(filter,d0))cnt++;}h+='<div class="card"><div class="cnt">'+esc(nameOf(filter))+' さんの出勤：<b>'+cnt+'</b>日</div></div>';}
     h+='<div class="legend2">左：名前　／　各日マス：希望(時刻 or ◯△×)・勤務時間・手書き用空白　・　オレンジ＝採用　・　小さい時は「全体表示」や拡大で確認</div>';
     h+='<div class="vweeks">';
@@ -179,64 +182,106 @@ body{padding:10px 2px 50px}
   function saveCalendarImage(){
     var target=document.querySelector('.vweeks');
     var btn=document.getElementById('photo');
+    var msg=document.getElementById('photo-msg');
     if(!target)return;
     var old=btn?btn.textContent:'';
     if(btn){btn.disabled=true;btn.textContent='保存中...';}
+    if(msg)msg.textContent='';
     try{
-      var rect=target.getBoundingClientRect();
-      var width=Math.ceil(target.scrollWidth||rect.width);
-      var height=Math.ceil(target.scrollHeight||rect.height);
-      var clone=target.cloneNode(true);
-      clone.style.width=width+'px';
-      clone.style.margin='0';
-      var wrap=document.createElement('div');
-      wrap.setAttribute('xmlns','http://www.w3.org/1999/xhtml');
-      wrap.style.width=width+'px';
-      wrap.style.minHeight=height+'px';
-      wrap.style.padding='8px';
-      wrap.style.background='#f4f1ea';
-      var style=document.createElement('style');
-      style.textContent=(document.querySelector('style')?document.querySelector('style').textContent:'')+' .vweeks{margin:0!important}.pbtn,.bar,.legend2{display:none!important}';
-      wrap.appendChild(style);
-      wrap.appendChild(clone);
-      var xml=new XMLSerializer().serializeToString(wrap);
-      var svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+(width+16)+'" height="'+(height+16)+'"><foreignObject width="100%" height="100%">'+xml+'</foreignObject></svg>';
-      var blob=new Blob([svg],{type:'image/svg+xml;charset=utf-8'});
-      var url=URL.createObjectURL(blob);
-      var img=new Image();
-      img.onload=function(){
-        URL.revokeObjectURL(url);
-        var scale=Math.max(2,window.devicePixelRatio||1);
-        var canvas=document.createElement('canvas');
-        canvas.width=Math.ceil((width+16)*scale);
-        canvas.height=Math.ceil((height+16)*scale);
-        var ctx=canvas.getContext('2d');
-        ctx.fillStyle='#f4f1ea';
-        ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(img,0,0,canvas.width,canvas.height);
-        canvas.toBlob(function(png){
-          if(!png){
-            if(btn){btn.disabled=false;btn.textContent=old;}
-            alert('写真を作成できませんでした。ブラウザを変えてもう一度試してください。');
-            return;
-          }
-          var a=document.createElement('a');
-          var purl=URL.createObjectURL(png);
-          a.href=purl;
-          a.download='shift-'+D.year+'-'+('0'+D.month).slice(-2)+'.png';
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          setTimeout(function(){URL.revokeObjectURL(purl);},1000);
-          if(btn){btn.disabled=false;btn.textContent=old;}
-        },'image/png');
-      };
-      img.onerror=function(){
-        URL.revokeObjectURL(url);
+      var base=target.getBoundingClientRect();
+      var pad=10;
+      var width=Math.ceil(target.scrollWidth||base.width);
+      var height=Math.ceil(target.scrollHeight||base.height);
+      var scale=Math.max(2,window.devicePixelRatio||1);
+      var canvas=document.createElement('canvas');
+      canvas.width=Math.ceil((width+pad*2)*scale);
+      canvas.height=Math.ceil((height+pad*2)*scale);
+      var ctx=canvas.getContext('2d');
+      ctx.scale(scale,scale);
+      ctx.fillStyle='#f4f1ea';
+      ctx.fillRect(0,0,width+pad*2,height+pad*2);
+
+      function rectOf(el){
+        var r=el.getBoundingClientRect();
+        return {x:r.left-base.left+pad,y:r.top-base.top+pad,w:r.width,h:r.height};
+      }
+      function bgOf(el, fallback){
+        var c=getComputedStyle(el).backgroundColor;
+        return (!c||c==='transparent'||c==='rgba(0, 0, 0, 0)')?fallback:c;
+      }
+      function box(el, fill, stroke){
+        var r=rectOf(el);
+        if(fill){ctx.fillStyle=fill;ctx.fillRect(r.x,r.y,r.w,r.h);}
+        if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.strokeRect(r.x+.5,r.y+.5,Math.max(0,r.w-1),Math.max(0,r.h-1));}
+      }
+      function drawText(text, r, align, color, weight, size){
+        text=String(text||'').trim();
+        if(!text)return;
+        size=parseFloat(size)||8;
+        weight=weight||'400';
+        ctx.textBaseline='middle';
+        ctx.textAlign=align;
+        ctx.fillStyle=color||'#2b2724';
+        do{
+          ctx.font=weight+' '+size+'px sans-serif';
+          if(ctx.measureText(text).width<=Math.max(4,r.w-4)||size<=5)break;
+          size-=.5;
+        }while(true);
+        var x=align==='left'?r.x+2:align==='right'?r.x+r.w-2:r.x+r.w/2;
+        ctx.fillText(text,x,r.y+r.h/2);
+      }
+
+      [].forEach.call(target.querySelectorAll('.vnamecol,.vcell:not(.blank)'),function(el){
+        box(el,bgOf(el,'#fffdf8'),'#d8cfbd');
+      });
+      [].forEach.call(target.querySelectorAll('.vnamehead,.vhead,.vname,.vline>span'),function(el){
+        box(el,bgOf(el,null),'#eee7da');
+      });
+      [].forEach.call(target.querySelectorAll('.vhead'),function(el){
+        var r=rectOf(el), st=getComputedStyle(el);
+        var kids=el.children;
+        drawText(kids[0]?kids[0].textContent:'', {x:r.x+1,y:r.y,w:r.w*.56,h:r.h}, 'left', st.color, st.fontWeight, st.fontSize);
+        drawText(kids[1]?kids[1].textContent:'', {x:r.x+r.w*.44,y:r.y,w:r.w*.56-1,h:r.h}, 'right', '#8a8378', '400', getComputedStyle(kids[1]||el).fontSize);
+      });
+      [].forEach.call(target.querySelectorAll('.vname'),function(el){
+        var st=getComputedStyle(el);
+        drawText(el.textContent,rectOf(el),'left',st.color,st.fontWeight,st.fontSize);
+      });
+      [].forEach.call(target.querySelectorAll('.vline>span'),function(el){
+        var st=getComputedStyle(el);
+        drawText(el.textContent,rectOf(el),'center',st.color,st.fontWeight,st.fontSize);
+      });
+
+      function finish(png){
+        if(!png){throw new Error('png');}
+        if(lastPhotoUrl)URL.revokeObjectURL(lastPhotoUrl);
+        var purl=URL.createObjectURL(png);
+        lastPhotoUrl=purl;
+        var fileName='shift-'+D.year+'-'+('0'+D.month).slice(-2)+'.png';
+        if(msg){
+          msg.innerHTML='保存されない場合：<a id="photo-link" href="'+purl+'" download="'+fileName+'" target="_blank" rel="noopener">画像を開く/保存</a>';
+        }
+        var a=msg?document.getElementById('photo-link'):document.createElement('a');
+        a.href=purl;
+        a.download=fileName;
+        if(!msg)document.body.appendChild(a);
+        a.click();
+        if(!msg)a.remove();
         if(btn){btn.disabled=false;btn.textContent=old;}
-        alert('写真を作成できませんでした。ブラウザを変えてもう一度試してください。');
-      };
-      img.src=url;
+      }
+      if(canvas.toBlob){
+        canvas.toBlob(function(png){
+          try{finish(png);}catch(e){if(btn){btn.disabled=false;btn.textContent=old;}alert('写真を作成できませんでした。ブラウザを変えてもう一度試してください。');}
+        },'image/png');
+      }else{
+        var a2=document.createElement('a');
+        a2.href=canvas.toDataURL('image/png');
+        a2.download='shift-'+D.year+'-'+('0'+D.month).slice(-2)+'.png';
+        document.body.appendChild(a2);
+        a2.click();
+        a2.remove();
+        if(btn){btn.disabled=false;btn.textContent=old;}
+      }
     }catch(e){
       if(btn){btn.disabled=false;btn.textContent=old;}
       alert('写真を作成できませんでした。ブラウザを変えてもう一度試してください。');
