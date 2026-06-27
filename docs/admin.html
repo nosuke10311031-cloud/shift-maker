@@ -41,6 +41,7 @@
   .btn.sm{padding:5px 10px;font-size:12px}
   .member-tag{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);color:var(--accent);padding:6px 8px 6px 12px;border-radius:14px;font-size:13px;font-weight:500}
   .member-tag .nm{font-weight:700}
+  .member-tag .rename{border:none;background:transparent;color:var(--accent);font-family:inherit;font-size:10px;font-weight:700;padding:2px 3px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
   .member-tag .consec{display:flex;align-items:center;gap:3px;font-size:11px;font-weight:400;color:#a55a36}
   .member-tag .consec input{width:34px;padding:3px 4px;font-size:11px;border-radius:6px;text-align:center}
   .member-tag button.del{border:none;background:rgba(0,0,0,.08);color:inherit;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center}
@@ -71,6 +72,11 @@
   .empty{color:var(--muted);font-size:13px;padding:20px;text-align:center}
   .hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
   .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .shift-guide{display:grid;grid-template-columns:auto auto;align-self:stretch;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#faf7f0;font-size:9px;line-height:1.25}
+  .shift-guide dt,.shift-guide dd{padding:3px 5px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .shift-guide dt{font-weight:700;background:#f2ede3;border-right:1px solid var(--line)}
+  .shift-guide dd{font-variant-numeric:tabular-nums}
+  .shift-guide dt:nth-last-of-type(1),.shift-guide dd:last-child{border-bottom:none}
   .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap;align-items:center}
   .save-note{font-size:11px;color:var(--muted)}
   /* summary */
@@ -213,6 +219,8 @@
     .wrap{padding:14px 4px 60px}
     .shift-card{padding-left:2px;padding-right:2px}
     .shift-card .toolbar,.shift-card h2,.shift-card>.hint{margin-left:6px;margin-right:6px}
+    .shift-guide{width:100%;grid-template-columns:46px 1fr;font-size:8px}
+    .shift-guide dt,.shift-guide dd{white-space:normal;padding:3px 4px}
     .cal{gap:1px}
     .cal-head{font-size:8px;padding:2px 0}
     .cal-cell{border-radius:3px;padding:1px;gap:1px}
@@ -234,6 +242,55 @@ const isWeekend=(dow)=>dow===5||dow===6||dow===0;            // 金土日
 const uid=()=>Math.random().toString(36).slice(2,9);
 const daysInMonth=(y,m)=>new Date(y,m,0).getDate();
 const WEIGHT={'◯':1,'△':0.5,'×':0};
+const dateKey=(y,m,d)=>`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+const nthWeekday=(y,m,dow,n)=>{const first=new Date(y,m-1,1).getDay();return 1+((7+dow-first)%7)+(n-1)*7;};
+const equinoxDay=(y,spring)=>{
+  if(y<2000||y>2099)return 0;
+  const base=spring?20.8431:23.2488;
+  return Math.floor(base+0.242194*(y-1980)-Math.floor((y-1980)/4));
+};
+// 現行の祝日法に基づく日本の祝日・休日。2000〜2099年に対応。
+function japaneseHolidays(y){
+  const out={};
+  if(y<2000||y>2099)return out;
+  const add=(m,d,name)=>{out[dateKey(y,m,d)]=name;};
+  add(1,1,'元日');
+  add(1,nthWeekday(y,1,1,2),'成人の日');
+  add(2,11,'建国記念の日');
+  if(y>=2020)add(2,23,'天皇誕生日');
+  else if(y<=2018)add(12,23,'天皇誕生日');
+  add(3,equinoxDay(y,true),'春分の日');
+  add(4,29,y>=2007?'昭和の日':'みどりの日');
+  add(5,3,'憲法記念日');add(5,4,y>=2007?'みどりの日':'国民の休日');add(5,5,'こどもの日');
+  if(y===2020){add(7,23,'海の日');add(7,24,'スポーツの日');add(8,10,'山の日');}
+  else if(y===2021){add(7,22,'海の日');add(7,23,'スポーツの日');add(8,8,'山の日');}
+  else{
+    add(7,y>=2003?nthWeekday(y,7,1,3):20,'海の日');
+    if(y>=2016)add(8,11,'山の日');
+    add(10,nthWeekday(y,10,1,2),y>=2020?'スポーツの日':'体育の日');
+  }
+  add(9,y>=2003?nthWeekday(y,9,1,3):15,'敬老の日');
+  add(9,equinoxDay(y,false),'秋分の日');
+  add(11,3,'文化の日');add(11,23,'勤労感謝の日');
+  if(y===2019){add(5,1,'天皇の即位の日');add(10,22,'即位礼正殿の儀');}
+
+  // 祝日に挟まれた平日を「国民の休日」にする。
+  for(let t=new Date(y,0,2);t.getFullYear()===y;t.setDate(t.getDate()+1)){
+    const k=dateKey(y,t.getMonth()+1,t.getDate());
+    if(out[k])continue;
+    const prev=new Date(t);prev.setDate(t.getDate()-1);
+    const next=new Date(t);next.setDate(t.getDate()+1);
+    if(out[dateKey(y,prev.getMonth()+1,prev.getDate())]&&out[dateKey(y,next.getMonth()+1,next.getDate())])out[k]='国民の休日';
+  }
+  // 日曜の祝日は、その後で最初の祝日ではない日を振替休日にする。
+  Object.keys({...out}).sort().forEach(k=>{
+    const p=k.split('-').map(Number),dt=new Date(p[0],p[1]-1,p[2]);
+    if(dt.getDay()!==0)return;
+    do{dt.setDate(dt.getDate()+1);}while(out[dateKey(dt.getFullYear(),dt.getMonth()+1,dt.getDate())]);
+    if(dt.getFullYear()===y)out[dateKey(y,dt.getMonth()+1,dt.getDate())]='振替休日';
+  });
+  return out;
+}
 // 提出コードのエンコード/デコード（日本語対応Base64）
 const encodeSubmission=(obj)=>{try{const j=JSON.stringify(obj);return btoa(String.fromCharCode(...new TextEncoder().encode(j)));}catch(e){return '';}};
 const decodeSubmission=(str)=>{try{const j=new TextDecoder().decode(Uint8Array.from(atob(str.trim()),c=>c.charCodeAt(0)));return JSON.parse(j);}catch(e){return null;}};
@@ -313,8 +370,9 @@ function TimePicker({value,onChange,disabled,suffix}){
 function buildTargets(state){
   const {year,month,members,prefs,demand}=state;
   const dim=daysInMonth(year,month);
+  const holidays=japaneseHolidays(year);
   const days=[];
-  for(let d=1;d<=dim;d++){const dow=new Date(year,month-1,d).getDay();days.push({d,dow,we:isWeekend(dow)});}
+  for(let d=1;d<=dim;d++){const dow=new Date(year,month-1,d).getDay();const holiday=holidays[dateKey(year,month,d)]||'';days.push({d,dow,holiday,we:isWeekend(dow)||!!holiday});}
   const getPref=(mid,d)=>(prefs[mid]&&prefs[mid][d])||'×';
   const getDemand=(d,we)=>(demand.override[d]??(we?demand.weekend:demand.weekday));
   const half=(d)=>d<=Math.ceil(dim/2)?'A':'B';
@@ -481,11 +539,12 @@ function App(){
   });
   const set=(patch)=>setS(p=>({...p,...patch}));
   const dim=daysInMonth(s.year,s.month);
-  const days=useMemo(()=>{const a=[];for(let d=1;d<=dim;d++){const dow=new Date(s.year,s.month-1,d).getDay();a.push({d,dow,we:isWeekend(dow)});}return a;},[s.year,s.month,dim]);
+  const days=useMemo(()=>{const a=[],holidays=japaneseHolidays(s.year);for(let d=1;d<=dim;d++){const dow=new Date(s.year,s.month-1,d).getDay();const holiday=holidays[dateKey(s.year,s.month,d)]||'';a.push({d,dow,holiday,we:isWeekend(dow)||!!holiday});}return a;},[s.year,s.month,dim]);
 
   const addMember=()=>{const name=(newName||'').trim();if(!name)return;set({members:[...s.members,{id:uid(),name,noConsec:0,maxDays:0}]});setNewName('');};
   const delMember=(id)=>set({members:s.members.filter(m=>m.id!==id)});
   const moveMember=(id,dir)=>{const a=[...s.members];const i=a.findIndex(m=>m.id===id);const j=i+dir;if(j<0||j>=a.length)return;const t=a[i];a[i]=a[j];a[j]=t;set({members:a});};
+  const setMemberName=(id,name)=>set({members:s.members.map(m=>m.id===id?{...m,name}:m)});
   const setConsec=(id,v)=>set({members:s.members.map(m=>m.id===id?{...m,noConsec:Math.max(0,parseInt(v)||0)}:m)});
   const setMaxDays=(id,v)=>set({members:s.members.map(m=>m.id===id?{...m,maxDays:Math.max(0,parseInt(v)||0)}:m)});
 
@@ -512,7 +571,7 @@ function App(){
   const confAll=()=>{const cm={};s.members.forEach(m=>cm[m.id]=true);set({confM:cm});};
   const clearConf=()=>{if(window.confirm('すべての確定（人・日）を解除します。よろしいですか？'))set({confM:{},confD:{}});};
   const openDayPop=(e,d)=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();let left=r.left;if(left+170>window.innerWidth-8)left=window.innerWidth-178;if(left<8)left=8;let top=r.bottom+6;if(top+96>window.innerHeight-8)top=Math.max(8,r.top-100);setDayPop({d,top,left});};
-  const openMemPop=(e,mid)=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();let left=r.left;if(left+200>window.innerWidth-8)left=window.innerWidth-208;if(left<8)left=8;let top=r.bottom+6;if(top+160>window.innerHeight-8)top=Math.max(8,r.top-164);setMemPop({mid,top,left});};
+  const openMemPop=(e,mid)=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();let left=r.left;if(left+220>window.innerWidth-8)left=window.innerWidth-228;if(left<8)left=8;let top=r.bottom+6;if(top+210>window.innerHeight-8)top=Math.max(8,r.top-214);setMemPop({mid,top,left});};
 
   // ===== 管理者モード：提出コードの取り込み =====
   const importCode=()=>{
@@ -534,7 +593,7 @@ function App(){
   const buildShare=()=>{
     if(!s.members.length)return;
     const idx={};s.members.forEach((m,i)=>{idx[m.id]=i;});
-    const C={y:s.year,m:s.month,n:s.members.map(m=>m.name),a:{},t:{},p:{},v:{},dw:s.demand.weekday,de:s.demand.weekend,ov:s.demand.override||{}};
+    const C={y:s.year,m:s.month,n:s.members.map(m=>m.name),a:{},t:{},p:{},v:{},dw:s.demand.weekday,de:s.demand.weekend,ov:s.demand.override||{},h:days.filter(x=>x.holiday).map(x=>x.d)};
     days.forEach(x=>{
       const ins=s.members.filter(m=>isIn(x.d,m.id)).map(m=>idx[m.id]);
       if(ins.length)C.a[x.d]=ins;
@@ -569,7 +628,7 @@ function App(){
   return (
     <div className="wrap">
       <h1><span className="dot"></span>シフトメーカー<span style={{fontSize:14,color:'var(--muted)',fontWeight:400,marginLeft:6}}>管理者用</span></h1>
-      <div className="sub">希望を集めて、平日／週末を分けて平等に自動割り当て。連勤制約つき・後から手で直せます。</div>
+      <div className="sub">希望を集めて、平日／金土日祝を分けて平等に自動割り当て。連勤制約つき・後から手で直せます。</div>
 
       {/* 1 基本設定 */}
       <div className="card">
@@ -577,8 +636,8 @@ function App(){
         <div className="row">
           <label className="fl">年<input type="number" value={s.year} onChange={e=>set({year:parseInt(e.target.value)||s.year})}/></label>
           <label className="fl">月<select value={s.month} onChange={e=>set({month:parseInt(e.target.value)})}>{Array.from({length:12},(_,i)=>i+1).map(m=><option key={m} value={m}>{m}月</option>)}</select></label>
-          <label className="fl">平日(月〜木)の募集人数<input type="number" value={s.demand.weekday} onChange={e=>setDemand('weekday',e.target.value)}/></label>
-          <label className="fl">週末(金土日)の募集人数<input type="number" value={s.demand.weekend} onChange={e=>setDemand('weekend',e.target.value)}/></label>
+          <label className="fl">平日(月〜木・祝日除く)の募集人数<input type="number" value={s.demand.weekday} onChange={e=>setDemand('weekday',e.target.value)}/></label>
+          <label className="fl">金土日祝の募集人数<input type="number" value={s.demand.weekend} onChange={e=>setDemand('weekend',e.target.value)}/></label>
         </div>
         <div className="hint">※ 日ごとに人数を変えたいときは、希望表の「募集人数」行で個別に上書きできます。</div>
       </div>
@@ -590,6 +649,7 @@ function App(){
           {s.members.map(m=>(
             <span className="member-tag" key={m.id}>
               <span className="nm">{m.name}</span>
+              <button className="rename" onClick={e=>openMemPop(e,m.id)} title="名前を編集">名前編集</button>
               <span className="consec"><input type="number" min="0" value={m.noConsec||''} placeholder="—" onChange={e=>setConsec(m.id,e.target.value)}/>連勤禁止</span>
               <span className="consec"><input type="number" min="0" value={m.maxDays||''} placeholder="—" onChange={e=>setMaxDays(m.id,e.target.value)}/>最大勤務</span>
               <button className="del" onClick={()=>delMember(m.id)} title="削除">×</button>
@@ -622,7 +682,7 @@ function App(){
         </div>
         <div className="grid-scroll">
           <table>
-            <thead><tr><th className="namecol">メンバー</th>{days.map(x=><th key={x.d} className={"dayhead"+(x.we?" we":"")}>{x.d}<small>{WD[x.dow]}</small></th>)}</tr></thead>
+            <thead><tr><th className="namecol">メンバー</th>{days.map(x=><th key={x.d} className={"dayhead"+(x.we?" we":"")} title={x.holiday||''}>{x.d}<small>{WD[x.dow]}{x.holiday?'（祝）':''}</small></th>)}</tr></thead>
             <tbody>
               <tr>
                 <td className="namecol" style={{color:'var(--muted)',fontSize:12}}>募集人数</td>
@@ -651,6 +711,7 @@ function App(){
         <div className="tp-pop" style={{top:memPop.top,left:memPop.left,width:'auto',padding:14}}>
           <div className="tp-ttl">{mm.name} の設定</div>
           <div style={{display:'flex',flexDirection:'column',gap:8,minWidth:160}}>
+            <label className="mp-row">名前<input type="text" value={mm.name} onChange={e=>setMemberName(mm.id,e.target.value)} onBlur={e=>setMemberName(mm.id,e.target.value.trim()||'名前未設定')}/></label>
             <label className="mp-row">連勤禁止<input type="number" min="0" value={mm.noConsec||''} placeholder="—" onChange={e=>setConsec(mm.id,e.target.value)}/></label>
             <label className="mp-row">最大勤務日数<input type="number" min="0" value={mm.maxDays||''} placeholder="—" onChange={e=>setMaxDays(mm.id,e.target.value)}/></label>
             <div style={{fontSize:10,color:'var(--muted)'}}>どちらも 空欄(—)＝制限なし</div>
@@ -665,6 +726,12 @@ function App(){
         <div className="toolbar">
           <button className="btn accent" onClick={runFill} disabled={!s.members.length}>残りを自動で作成 ▶</button>
           <button className="btn ghost sm" onClick={clearAll} disabled={!s.members.length}>全部クリア</button>
+          <dl className="shift-guide" aria-label="出勤時間の目安">
+            <dt>平日</dt><dd>17:00−4名 ／ 18:00−2名</dd>
+            <dt>金</dt><dd>15:30−3名 ／ 17:00−1名 ／ 17:30−1名</dd>
+            <dt>土・祝</dt><dd>15:30−3名 ／ 16:00−1名 ／ 17:00−2名</dd>
+            <dt>日</dt><dd>15:00−3名 ／ 17:00−2名 ／ 17:30−1名</dd>
+          </dl>
           <span className="cf-wrap" style={{marginLeft:'auto'}}>
             <button className="btn ghost sm" onClick={()=>setConfOpen(o=>!o)} disabled={!s.members.length}>確定 {confOpen?'▲':'▼'}</button>
             {confOpen&&(
@@ -696,7 +763,7 @@ function App(){
               const inCount=s.members.filter(m=>isIn(x.d,m.id)).length;
               return (
                 <div key={x.d} className={"cal-cell"+(x.we?" we":"")}>
-                  <div className={"cal-date"+(inCount<def?" short":"")}><span><span className="dnum" onClick={e=>openDayPop(e,x.d)}>{x.d}</span><span style={{fontSize:9,color:x.we?'var(--weekend)':'var(--muted)',marginLeft:2}}>{WD[x.dow]}</span>{s.confD&&s.confD[x.d]?<span className="lk">🔒</span>:null}</span>
+                  <div className={"cal-date"+(inCount<def?" short":"")}><span title={x.holiday||''}><span className="dnum" onClick={e=>openDayPop(e,x.d)}>{x.d}</span><span style={{fontSize:9,color:x.we?'var(--weekend)':'var(--muted)',marginLeft:2}}>{WD[x.dow]}{x.holiday?'（祝）':''}</span>{s.confD&&s.confD[x.d]?<span className="lk">🔒</span>:null}</span>
                     <span className={"cap"+(over?" over":"")}>{inCount}/{def}</span></div>
                   {rows.map(m=>{
                     const p=getPref(m.id,x.d);const inn=isIn(x.d,m.id);const av=getAvail(m.id,x.d);
@@ -736,8 +803,8 @@ function App(){
           <table className="sum-table">
             <thead><tr>
               <th>メンバー</th><th>連勤禁止</th><th>最大</th>
-              <th>希望(平日)</th><th>希望(週末)</th><th>希望合計</th>
-              <th>採用(平日)</th><th>採用(週末)</th><th>採用合計</th>
+              <th>希望(平日)</th><th>希望(金土日祝)</th><th>希望合計</th>
+              <th>採用(平日)</th><th>採用(金土日祝)</th><th>採用合計</th>
             </tr></thead>
             <tbody>
               {s.members.map(m=>{

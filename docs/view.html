@@ -95,7 +95,7 @@ body{padding:10px 2px 50px}
         year:c.y, month:c.m,
         members:c.n.map(function(name,i){return {id:i,name:name};}),
         assignments:c.a||{}, times:c.t||{}, prefs:c.p||{}, avail:c.v||{},
-        dw:c.dw||0, de:c.de||0, ov:c.ov||{}
+        dw:c.dw||0, de:c.de||0, ov:c.ov||{}, holidays:c.h||[]
       };
     }catch(e){return null;}
   }
@@ -105,7 +105,8 @@ body{padding:10px 2px 50px}
   function prefOf(id,d){return (D.prefs[id]&&D.prefs[id][d])||'×';}
   function availOf(id,d){return (D.avail[id]&&D.avail[id][d])||'';}
   function isIn(id,d){var a=D.assignments[d]||[];return a.indexOf(id)>=0;}
-  function demandOf(d){var dow=new Date(D.year,D.month-1,d).getDay();var we=isWE(dow);return (D.ov&&D.ov[d]!=null)?D.ov[d]:(we?D.de:D.dw);}
+  function isHoliday(d){return (D.holidays||[]).indexOf(d)>=0;}
+  function demandOf(d){var dow=new Date(D.year,D.month-1,d).getDay();var we=isWE(dow)||isHoliday(d);return (D.ov&&D.ov[d]!=null)?D.ov[d]:(we?D.de:D.dw);}
 
   function renderShift(){
     var dim=new Date(D.year,D.month,0).getDate();
@@ -140,7 +141,7 @@ body{padding:10px 2px 50px}
         var inCount=0;for(var z=0;z<D.members.length;z++){if(isIn(D.members[z].id,d))inCount++;}
         var def=demandOf(d);var short=def>0&&inCount<def;var cntHtml=def>0?(inCount+'/'+def):inCount;
         h+='<div class="vcell'+(we?' we':'')+'">';
-        h+='<div class="vhead'+(short?' short':'')+'"><span>'+d+'<span class="vdw">'+WD[dow]+'</span></span><span class="vcnt">'+cntHtml+'</span></div>';
+        h+='<div class="vhead'+(short?' short':'')+'"><span>'+d+'<span class="vdw">'+WD[dow]+(isHoliday(d)?'（祝）':'')+'</span></span><span class="vcnt">'+cntHtml+'</span></div>';
         for(var r=0;r<rows.length;r++){
           var id=rows[r].id;var p=prefOf(id,d);var inn=isIn(id,d);var av=availOf(id,d);var tm=timeOf(id,d);
           var wishCell=(p!=='×'&&av)?av:p;
