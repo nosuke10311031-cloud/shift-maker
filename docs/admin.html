@@ -111,9 +111,7 @@
   .mcell.out{opacity:.4}
   .mck{font-weight:700;flex:none;font-size:11px}
   .mnm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
-  .mnm.cmaru{color:var(--maru)}
-  .mnm.csankaku{color:var(--sankaku)}
-  .mnm.cbatsu{color:var(--batsu);font-weight:400}
+  .mnm.cmaru,.mnm.csankaku,.mnm.cbatsu{color:var(--maru);font-weight:600}
   .mtw{width:100%}
   .mtw .tp{display:block;width:100%}
   .mtw .tp-btn{width:100%;padding:2px 1px;font-size:9px;text-align:center}
@@ -123,7 +121,7 @@
   .mini-row>span{min-width:0;border-right:1px solid #eee7da;border-bottom:1px solid #eee7da;padding:1px;display:flex;align-items:center;justify-content:center;overflow:hidden}
   .mini-row.miss{background:#fdf3ee}
   .mini-row .mnm{white-space:nowrap;overflow:hidden;font-weight:600;justify-content:flex-start}
-  .mini-row .mnm.cmaru{color:var(--maru)}.mini-row .mnm.csankaku{color:var(--sankaku)}.mini-row .mnm.cbatsu{color:var(--batsu);font-weight:400}
+  .mini-row .mnm.cmaru,.mini-row .mnm.csankaku,.mini-row .mnm.cbatsu{color:var(--maru);font-weight:600}
   .mini-row .mpf{text-align:center;font-weight:700}
   .mini-row .mpf.cmaru{color:var(--maru)}.mini-row .mpf.csankaku{color:var(--sankaku)}.mini-row .mpf.cbatsu{color:var(--batsu)}
   .mini-row .mav{font-size:8px;color:var(--accent);text-align:center;overflow:hidden;white-space:nowrap}
@@ -324,16 +322,17 @@ function Wheel({items,value,onChange}){
 }
 
 // ===== 共通：時間選択ピッカー（タップで開く・15分刻み・決定ボタン付き） =====
-function TimePicker({value,onChange,disabled,suffix}){
+function TimePicker({value,onChange,disabled,suffix,initialValue}){
   const [open,setOpen]=useState(false);
   const [h,setH]=useState('17');
   const [m,setM]=useState('00');
   const [pos,setPos]=useState({top:0,left:0});
   const btnRef=useRef(null);
-  useEffect(()=>{if(value){const a=value.split(':');setH(a[0]);setM(a[1]);}else{setH('17');setM('00');}},[value,open]);
+  useEffect(()=>{const a=(value||initialValue||'17:00').split(':');setH(a[0]);setM(a[1]);},[value,initialValue,open]);
   const label=value?(value+(suffix||'')):'--:--';
   const openPicker=()=>{
     if(disabled)return;
+    const a=(value||initialValue||'17:00').split(':');setH(a[0]);setM(a[1]);
     const r=btnRef.current.getBoundingClientRect();
     const W=Math.min(300,window.innerWidth*0.92);
     const PH=235;
@@ -775,7 +774,7 @@ function App(){
                       <span className={"mpf "+cc+(wish?' wishfill':'')}>{p}</span>
                       <span className={"mav"+(wish?' wishfill':'')}>{p!=='×'&&av?av:'·'}</span>
                       <span className={"mak"+(inn?(cf?' lockfill':' workfill'):'')} onClick={e=>{e.stopPropagation();toggleAssign(x.d,m.id);}} style={{color:inn?(cf?'#3b6fb0':'var(--accent)'):'var(--line)'}}>{inn?'◯':'・'}</span>
-                      <span className={"mwt"+(inn?(cf?' lockfill':' workfill'):'')}>{inn?<TimePicker value={s.times[`${m.id}-${x.d}`]||''} onChange={v=>setTime(m.id,x.d,v)}/>:<span className="dim">·</span>}</span>
+                      <span className={"mwt"+(inn?(cf?' lockfill':' workfill'):'')}>{inn?<TimePicker value={s.times[`${m.id}-${x.d}`]||''} initialValue={av} onChange={v=>setTime(m.id,x.d,v)}/>:<span className="dim">·</span>}</span>
                     </div>;
                   })}
                 </div>
