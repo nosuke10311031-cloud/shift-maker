@@ -72,6 +72,8 @@
   .empty{color:var(--muted);font-size:13px;padding:20px;text-align:center}
   .hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
   .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .fill-stack,.clear-stack{display:flex;flex-direction:column;gap:4px}
+  .fill-stack .btn,.clear-stack .btn{width:100%}
   .shift-guide{display:grid;grid-template-columns:auto auto;align-self:stretch;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#faf7f0;font-size:9px;line-height:1.25}
   .shift-guide dt,.shift-guide dd{padding:3px 5px;border-bottom:1px solid var(--line);white-space:nowrap}
   .shift-guide dt{font-weight:700;background:#f2ede3;border-right:1px solid var(--line)}
@@ -554,8 +556,44 @@ function App(){
   const setDemand=(k,v)=>set({demand:{...s.demand,[k]:Math.max(0,parseInt(v)||0)}});
   const setOverride=(d,v)=>{const ov={...s.demand.override};if(v===''||v===null){delete ov[d];}else ov[d]=Math.max(0,parseInt(v)||0);set({demand:{...s.demand,override:ov}});};
 
+  const confirmedSnapshot=()=>{
+    const placed={},times={};
+    days.forEach(x=>{
+      s.members.forEach(m=>{
+        if(!isConf(x.d,m.id)||!isIn(x.d,m.id))return;
+        if(!placed[x.d])placed[x.d]={};
+        placed[x.d][m.id]=true;
+        const key=`${m.id}-${x.d}`;
+        if(Object.prototype.hasOwnProperty.call(s.times||{},key))times[key]=s.times[key];
+      });
+    });
+    return {placed,times};
+  };
   const runFill=()=>set({placed:autoFillBest(s,300)});
-  const clearAll=()=>{if(window.confirm('カレンダーの採用・確定（人/日）・勤務時刻をすべて消します。よろしいですか？'))set({placed:{},confM:{},confD:{},times:{}});};
+  const runFillUnconfirmed=()=>{
+    if(!window.confirm('確定済みの採用・勤務時間を残し、未確定部分を自動で作り直します。よろしいですか？'))return;
+    const kept=confirmedSnapshot();
+    const placed=autoFillBest({...s,placed:kept.placed,times:kept.times},300);
+    set({placed,times:kept.times});
+    setShareCode('');
+    setConfOpen(false);
+    setDayPop(null);
+  };
+  const clearAll=()=>{
+    if(!window.confirm('採用結果・勤務時間・人/日の確定をすべて消します。希望入力（◯△×・希望時間）は残ります。よろしいですか？'))return;
+    set({placed:{},confM:{},confD:{},times:{}});
+    setShareCode('');
+    setConfOpen(false);
+    setDayPop(null);
+  };
+  const clearUnconfirmed=()=>{
+    if(!window.confirm('確定済みの採用・勤務時間だけを残し、それ以外をすべて消します。よろしいですか？'))return;
+    const kept=confirmedSnapshot();
+    set(kept);
+    setShareCode('');
+    setConfOpen(false);
+    setDayPop(null);
+  };
 
   const isIn=(d,mid)=>!!(s.placed[d]&&s.placed[d][mid]);
   const toggleAssign=(d,mid)=>{if(isConf(d,mid))return;const dm={...(s.placed[d]||{})};if(dm[mid])delete dm[mid];else dm[mid]=true;set({placed:{...s.placed,[d]:dm}});};
@@ -723,8 +761,14 @@ function App(){
       <div className="card shift-card">
         <h2><span className="num">4</span>シフト作成 <span style={{fontSize:11,fontWeight:400,color:'var(--muted)'}}>／ マスをタップで採用◯を付け外し・時刻もタップ</span></h2>
         <div className="toolbar">
-          <button className="btn accent" onClick={runFill} disabled={!s.members.length}>残りを自動で作成 ▶</button>
-          <button className="btn ghost sm" onClick={clearAll} disabled={!s.members.length}>全部クリア</button>
+          <div className="fill-stack">
+            <button className="btn accent" onClick={runFill} disabled={!s.members.length}>残りを自動で作成 ▶</button>
+            <button className="btn accent sm" onClick={runFillUnconfirmed} disabled={!s.members.length}>確定以外を自動作成</button>
+          </div>
+          <div className="clear-stack">
+            <button className="btn ghost sm" onClick={clearAll} disabled={!s.members.length}>全部クリア</button>
+            <button className="btn ghost sm" onClick={clearUnconfirmed} disabled={!s.members.length}>確定以外を全部クリア</button>
+          </div>
           <dl className="shift-guide" aria-label="出勤時間の目安">
             <dt>平日</dt><dd>17:00−4名 ／ 18:00−2名</dd>
             <dt>金</dt><dd>15:30−3名 ／ 17:00−1名 ／ 17:30−1名</dd>
