@@ -102,7 +102,7 @@ body{padding:10px 2px 50px}
         year:c.y, month:c.m,
         members:c.n.map(function(name,i){return {id:i,name:name};}),
         assignments:c.a||{}, times:c.t||{}, prefs:c.p||{}, avail:c.v||{},
-        dw:c.dw||0, de:c.de||0, ov:c.ov||{}, holidays:c.h||[]
+        dw:c.dw||0, de:c.de||0, ov:c.ov||{}, dailyDemand:c.dm||{}, holidays:c.h||[]
       };
     }catch(e){return null;}
   }
@@ -113,7 +113,7 @@ body{padding:10px 2px 50px}
   function availOf(id,d){return (D.avail[id]&&D.avail[id][d])||'';}
   function isIn(id,d){var a=D.assignments[d]||[];return a.indexOf(id)>=0;}
   function isHoliday(d){return (D.holidays||[]).indexOf(d)>=0;}
-  function demandOf(d){var dow=new Date(D.year,D.month-1,d).getDay();var we=isWE(dow)||isHoliday(d);return (D.ov&&D.ov[d]!=null)?D.ov[d]:(we?D.de:D.dw);}
+  function demandOf(d){if(D.dailyDemand&&D.dailyDemand[d]!=null)return D.dailyDemand[d];var dow=new Date(D.year,D.month-1,d).getDay();var we=isWE(dow)||isHoliday(d);return (D.ov&&D.ov[d]!=null)?D.ov[d]:(we?D.de:D.dw);}
   function selectedMembers(){
     if(selectedIds===null)return D.members.slice();
     return D.members.filter(function(m){return selectedIds.indexOf(m.id)>=0;});

@@ -66,7 +66,20 @@
   .pref-maru{color:var(--maru);background:var(--maru-bg)}
   .pref-sankaku{color:var(--sankaku);background:var(--sankaku-bg)}
   .pref-batsu{color:var(--batsu);background:var(--batsu-bg)}
-  .demand-input{width:46px;border:none;text-align:center;padding:6px 2px;background:transparent;font-size:13px}
+  .demand-value{display:block;text-align:center;padding:6px 2px;font-size:13px;font-weight:700;color:var(--ink)}
+  .plan-grid{display:grid;grid-template-columns:repeat(4,minmax(180px,1fr));gap:14px;margin-top:12px}
+  .plan-block{min-width:0;border-left:3px solid var(--line);padding:2px 0 2px 10px}
+  .plan-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:7px}
+  .plan-title{font-family:'Zen Maru Gothic',sans-serif;font-size:14px;font-weight:700}
+  .plan-total{font-size:11px;color:var(--muted);white-space:nowrap}
+  .plan-row{display:grid;grid-template-columns:minmax(74px,1fr) 54px 25px;gap:5px;align-items:center;margin-top:5px}
+  .plan-row .tp,.plan-row .tp-btn{width:100%}
+  .plan-row .tp-btn{text-align:center;padding:6px 4px}
+  .plan-count{width:54px!important;min-width:0;padding:6px 4px;text-align:center}
+  .plan-del{width:25px;height:25px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1}
+  .plan-del:disabled{opacity:.3;cursor:default}
+  .plan-add{margin-top:7px;border:none;background:transparent;color:var(--accent);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;padding:2px}
+  .plan-note{margin-top:10px;padding:8px 10px;border-left:3px solid var(--sankaku);background:var(--sankaku-bg);font-size:11px;color:#755713}
   .stat{display:flex;gap:14px;flex-wrap:wrap;margin-top:4px}
   .stat .b{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:13px}
   .stat .b b{font-family:'Zen Maru Gothic';font-size:16px;display:block}
@@ -217,12 +230,19 @@
   .imp-ng{background:#fbe4e4;color:#a33}
   .big-prefcell{cursor:pointer;font-weight:700;font-size:18px;user-select:none;border-radius:8px;display:flex;align-items:center;justify-content:center;height:46px}
   ::-webkit-scrollbar{height:10px;width:10px}::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px}
+  @media(max-width:900px){
+    .plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
   @media(max-width:600px){
     .wrap{padding:14px 4px 60px}
     .shift-card{padding-left:2px;padding-right:2px}
     .shift-card .toolbar,.shift-card h2,.shift-card>.hint{margin-left:6px;margin-right:6px}
     .shift-guide{width:100%;grid-template-columns:46px 1fr;font-size:8px}
     .shift-guide dt,.shift-guide dd{white-space:normal;padding:3px 4px}
+    .plan-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 6px}
+    .plan-block{padding-left:6px}
+    .plan-row{grid-template-columns:minmax(66px,1fr) 45px 23px;gap:3px}
+    .plan-count{width:45px!important;font-size:11px;padding:5px 2px}
     .cal{gap:1px}
     .cal-head{font-size:8px;padding:2px 0}
     .cal-cell{border-radius:3px;padding:1px;gap:1px}
@@ -326,12 +346,13 @@ function Wheel({items,value,onChange}){
 }
 
 // ===== 共通：時間選択ピッカー（タップで開く・15分刻み・決定ボタン付き） =====
-function TimePicker({value,onChange,disabled,suffix,initialValue}){
+function TimePicker({value,onChange,disabled,suffix,initialValue,minHour=0,allowClear=true}){
   const [open,setOpen]=useState(false);
   const [h,setH]=useState('17');
   const [m,setM]=useState('00');
   const [pos,setPos]=useState({top:0,left:0});
   const btnRef=useRef(null);
+  const hourItems=HOURS.filter(x=>parseInt(x)>=minHour);
   useEffect(()=>{const a=(value||initialValue||'17:00').split(':');setH(a[0]);setM(a[1]);},[value,initialValue,open]);
   const label=value?(value+(suffix||'')):'--:--';
   const openPicker=()=>{
@@ -354,12 +375,12 @@ function TimePicker({value,onChange,disabled,suffix,initialValue}){
           <div className="tp-ttl">時刻を選択（上下にスライド・15分刻み）</div>
           <div className="tp-wheels">
             <div className="tp-band"></div>
-            <Wheel items={HOURS} value={h} onChange={setH}/>
+            <Wheel items={hourItems} value={h} onChange={setH}/>
             <span className="tp-colon">:</span>
             <Wheel items={MINS} value={m} onChange={setM}/>
           </div>
           <div className="tp-actions">
-            <button type="button" className="clr" onClick={()=>{onChange('');setOpen(false);}}>クリア</button>
+            {allowClear&&<button type="button" className="clr" onClick={()=>{onChange('');setOpen(false);}}>クリア</button>}
             <button type="button" className="ok" onClick={()=>{onChange(h+':'+m);setOpen(false);}}>決定</button>
           </div>
         </div>
@@ -371,13 +392,13 @@ function TimePicker({value,onChange,disabled,suffix,initialValue}){
 // ===== 割り当てアルゴリズム =====
 // 公平の目標（最大剰余法＋前後半ソフト）を作る純粋関数。autoFill とスコア評価で共有する。
 function buildTargets(state){
-  const {year,month,members,prefs,demand}=state;
+  const {year,month,members,prefs}=state;
   const dim=daysInMonth(year,month);
   const holidays=japaneseHolidays(year);
   const days=[];
   for(let d=1;d<=dim;d++){const dow=new Date(year,month-1,d).getDay();const holiday=holidays[dateKey(year,month,d)]||'';days.push({d,dow,holiday,we:isWeekend(dow)||!!holiday});}
   const getPref=(mid,d)=>(prefs[mid]&&prefs[mid][d])||'×';
-  const getDemand=(d,we)=>(demand.override[d]??(we?demand.weekend:demand.weekday));
+  const getDemand=(d)=>workPlanTotal(workPlanForDay(state,days[d-1]));
   const half=(d)=>d<=Math.ceil(dim/2)?'A':'B';
 
   // ---- プール別の目標（最大剰余法）----
@@ -508,11 +529,40 @@ function autoFillBest(state, N){
 }
 
 // ===== 出勤時間の自動割り当て =====
-const WORK_TIME_PLANS={
-  weekday:[['17:00',4],['18:00',2]],
-  friday:[['15:30',3],['17:00',1],['17:30',1]],
-  saturday:[['15:30',3],['16:00',1],['17:00',2]],
-  sunday:[['15:00',3],['17:00',2],['17:30',1]]
+const DEFAULT_WORK_PLANS={
+  weekday:[{time:'17:00',count:4},{time:'18:00',count:2}],
+  friday:[{time:'15:30',count:3},{time:'17:00',count:1},{time:'17:30',count:1}],
+  saturday:[{time:'15:30',count:3},{time:'16:00',count:1},{time:'17:00',count:2}],
+  sunday:[{time:'15:00',count:3},{time:'17:00',count:2},{time:'17:30',count:1}]
+};
+const PLAN_TYPES=['weekday','friday','saturday','sunday'];
+const PLAN_LABELS={weekday:'平日（月〜木）',friday:'金',saturday:'土・祝',sunday:'日'};
+const cloneDefaultPlans=()=>Object.fromEntries(PLAN_TYPES.map(type=>[type,DEFAULT_WORK_PLANS[type].map(row=>({...row}))]));
+const normalizeWorkPlans=(raw)=>{
+  const defaults=cloneDefaultPlans(),out={};
+  PLAN_TYPES.forEach(type=>{
+    const hasRows=!!(raw&&Object.prototype.hasOwnProperty.call(raw,type)&&Array.isArray(raw[type]));
+    const rows=hasRows?raw[type]:defaults[type];
+    const valid=rows.map(row=>({time:String(row.time||''),count:Math.max(1,parseInt(row.count)||1)}))
+      .filter(row=>/^\d{2}:\d{2}$/.test(row.time))
+      .sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));
+    out[type]=hasRows?valid:defaults[type];
+  });
+  return out;
+};
+const validateWorkPlans=(plans)=>{
+  for(const type of PLAN_TYPES){
+    const rows=plans&&plans[type];
+    if(!Array.isArray(rows)||!rows.length)return `${PLAN_LABELS[type]}の募集時間がありません。1つ以上設定してください。`;
+    const seen=new Set();
+    for(const row of rows){
+      if(timeToMinutes(row.time)<15*60)return `${PLAN_LABELS[type]}の時刻は15:00以降にしてください。`;
+      if(!Number.isInteger(Number(row.count))||Number(row.count)<1)return `${PLAN_LABELS[type]}の人数は1名以上にしてください。`;
+      if(seen.has(row.time))return `${PLAN_LABELS[type]}の${row.time}は重複しています。`;
+      seen.add(row.time);
+    }
+  }
+  return '';
 };
 const timeToMinutes=(v)=>{
   const p=String(v||'').split(':').map(Number);
@@ -526,28 +576,21 @@ const planTypeForDay=(x)=>{
   if(x.dow===6)return 'saturday';
   return 'weekday';
 };
-const workSlotsForDay=(x)=>{
+const workPlanForDay=(state,x)=>(state.workPlans&&state.workPlans[planTypeForDay(x)])||DEFAULT_WORK_PLANS[planTypeForDay(x)];
+const workPlanTotal=(rows)=>(rows||[]).reduce((sum,row)=>sum+(parseInt(row.count)||0),0);
+const formatWorkPlan=(rows)=>(rows||[]).map(row=>`${row.time}−${row.count}名`).join(' ／ ');
+const workSlotsForDay=(state,x)=>{
   const out=[];
-  WORK_TIME_PLANS[planTypeForDay(x)].forEach(([time,count])=>{for(let i=0;i<count;i++)out.push(time);});
+  workPlanForDay(state,x).forEach(row=>{for(let i=0;i<row.count;i++)out.push(row.time);});
   return out;
 };
 const fairnessPool=(x)=>planTypeForDay(x)==='weekday'?'weekday':'weekend';
-const fairnessBand=(pool,time)=>pool==='weekday'?(time==='17:00'?'first':'second'):(timeToMinutes(time)<=16*60?'first':'second');
-const chooseIntendedSlot=(actual,saved,remaining,fallback)=>{
-  let i=saved?remaining.indexOf(saved):-1;
-  if(i>=0)return remaining.splice(i,1)[0];
-  if(remaining.length){
-    const actualMin=timeToMinutes(actual);
-    let best=-1,bestMin=-1;
-    remaining.forEach((slot,j)=>{const sm=timeToMinutes(slot);if(sm<=actualMin&&sm>=bestMin){best=j;bestMin=sm;}});
-    if(best<0)best=0;
-    return remaining.splice(best,1)[0];
-  }
-  return saved||fallback[fallback.length-1]||actual;
-};
+const fairnessBand=(pool,time)=>timeToMinutes(time)<=16*60?'first':'second';
 
 // mode: remaining=入力済み時間を保持 / unconfirmed=確定時間だけ保持
 function assignWorkTimes(state, mode){
+  const planError=validateWorkPlans(state.workPlans);
+  if(planError)return {error:planError};
   const {year,month,members}=state;
   const holidays=japaneseHolidays(year);
   const dim=daysInMonth(year,month);
@@ -561,8 +604,6 @@ function assignWorkTimes(state, mode){
   const isConf=(d,mid)=>!!((state.confM&&state.confM[mid])||(state.confD&&state.confD[d]));
   const getAvail=(mid,d)=>(state.availFrom&&state.availFrom[mid]&&state.availFrom[mid][d])||'';
   const currentTimes=state.times||{};
-  const currentSlots=state.timeSlots||{};
-  const memberById={};members.forEach(m=>memberById[m.id]=m);
 
   const missing=[];
   days.forEach(x=>members.forEach(m=>{
@@ -570,7 +611,7 @@ function assignWorkTimes(state, mode){
   }));
   if(missing.length)return {error:`確定済みの勤務時間が未入力です：${missing.slice(0,5).join('、')}${missing.length>5?' ほか':''}。先に勤務時間を入力してください。`};
 
-  const baseTimes={},baseSlots={},infos=[];
+  const employeeTimes={},employeeSlots={},infos=[];
   const targetBand={weekday:{},weekend:{}},targetExact={weekday:{},weekend:{}};
   const ensureTarget=(pool,mid)=>{
     if(!targetBand[pool][mid])targetBand[pool][mid]={first:0,second:0};
@@ -582,13 +623,13 @@ function assignWorkTimes(state, mode){
     const adopted=members.filter(m=>isIn(x.d,m.id));
     const employees=adopted.filter(m=>m.employee);
     const regulars=adopted.filter(m=>!m.employee);
-    const fullSlots=workSlotsForDay(x);
+    const fullSlots=workSlotsForDay(state,x);
     const remainingAfterEmployees=[...fullSlots];
 
     employees.forEach(m=>{
       const key=`${m.id}-${x.d}`;
-      baseTimes[key]='13:00';
-      baseSlots[key]=remainingAfterEmployees.length?remainingAfterEmployees.shift():(fullSlots[fullSlots.length-1]||'');
+      employeeTimes[key]='13:00';
+      employeeSlots[key]=remainingAfterEmployees.length?remainingAfterEmployees.shift():(fullSlots[fullSlots.length-1]||'');
     });
 
     let planned=[...remainingAfterEmployees];
@@ -611,18 +652,12 @@ function assignWorkTimes(state, mode){
       });
     });
 
-    const remaining=[...planned],fixed=[],open=[];
-    regulars.forEach(m=>{
+    const candidates=regulars.map(m=>{
       const key=`${m.id}-${x.d}`;
       const keep=mode==='remaining'?!!currentTimes[key]:(isConf(x.d,m.id)&&!!currentTimes[key]);
-      if(keep){
-        const intended=chooseIntendedSlot(currentTimes[key],currentSlots[key],remaining,planned);
-        baseTimes[key]=currentTimes[key];
-        baseSlots[key]=intended;
-        fixed.push({mid:m.id,slot:intended});
-      }else open.push(m.id);
+      return {mid:m.id,fixedTime:keep?currentTimes[key]:''};
     });
-    infos.push({day:x,pool,slots:remaining,fixed,open});
+    infos.push({day:x,pool,slots:planned,candidates,employees});
   });
 
   const emptyHistory=()=>{
@@ -631,11 +666,6 @@ function assignWorkTimes(state, mode){
       band.weekday[m.id]={first:0,second:0};band.weekend[m.id]={first:0,second:0};
       exact.weekday[m.id]={};exact.weekend[m.id]={};
     });
-    infos.forEach(info=>info.fixed.forEach(f=>{
-      const bandName=fairnessBand(info.pool,f.slot);
-      band[info.pool][f.mid][bandName]++;
-      exact[info.pool][f.mid][f.slot]=(exact[info.pool][f.mid][f.slot]||0)+1;
-    }));
     return {band,exact};
   };
   const cloneHistory=(h)=>{
@@ -646,60 +676,81 @@ function assignWorkTimes(state, mode){
     }));
     return {band,exact};
   };
-  const fixedHistory=emptyHistory();
+  const blankHistory=emptyHistory();
   let best=null,bestScore=null;
 
-  for(let trial=0;trial<120;trial++){
-    const times={...baseTimes},timeSlots={...baseSlots};
-    const history=cloneHistory(fixedHistory);
+  for(let trial=0;trial<300;trial++){
+    const times={...employeeTimes},timeSlots={...employeeSlots};
+    const history=cloneHistory(blankHistory);
     let delayTotal=0;
+    const startsByDay={};
+    infos.forEach(info=>{startsByDay[info.day.d]=info.employees.map(()=>13*60);});
     const order=[...infos].sort(()=>Math.random()-.5);
     order.forEach(info=>{
-      const available=[...info.open];
+      const available=info.candidates.map(c=>({...c}));
       info.slots.forEach(slot=>{
         if(!available.length)return;
         const pool=info.pool,bandName=fairnessBand(pool,slot),slotMin=timeToMinutes(slot);
-        const ranked=available.map(mid=>{
-          const av=getAvail(mid,info.day.d);
-          const actualMin=Math.max(slotMin,av?timeToMinutes(av):slotMin);
+        const ranked=available.map(candidate=>{
+          const av=getAvail(candidate.mid,info.day.d);
+          const actualMin=candidate.fixedTime?timeToMinutes(candidate.fixedTime):Math.max(slotMin,av?timeToMinutes(av):slotMin);
           const delay=actualMin-slotMin;
-          const bandDef=(targetBand[pool][mid][bandName]||0)-history.band[pool][mid][bandName];
-          const exactDef=(targetExact[pool][mid][slot]||0)-(history.exact[pool][mid][slot]||0);
-          return {mid,actualMin,delay,bandDef,exactDef,tie:Math.random()};
+          const bandDef=(targetBand[pool][candidate.mid][bandName]||0)-history.band[pool][candidate.mid][bandName];
+          const exactDef=(targetExact[pool][candidate.mid][slot]||0)-(history.exact[pool][candidate.mid][slot]||0);
+          return {...candidate,actualMin,delay,bandDef,exactDef,tie:Math.random()};
         }).sort((a,b)=>
           ((a.delay>0)-(b.delay>0))||(a.delay-b.delay)||(b.bandDef-a.bandDef)||(b.exactDef-a.exactDef)||(a.tie-b.tie)
         );
         const pick=ranked[0],key=`${pick.mid}-${info.day.d}`;
-        times[key]=minutesToTime(pick.actualMin);
+        times[key]=pick.fixedTime||minutesToTime(pick.actualMin);
         timeSlots[key]=slot;
-        delayTotal+=pick.delay;
+        delayTotal+=Math.max(0,pick.delay);
+        startsByDay[info.day.d].push(pick.actualMin);
         history.band[pool][pick.mid][bandName]++;
         history.exact[pool][pick.mid][slot]=(history.exact[pool][pick.mid][slot]||0)+1;
-        available.splice(available.indexOf(pick.mid),1);
+        available.splice(available.findIndex(c=>c.mid===pick.mid),1);
       });
     });
 
-    let bandDev=0,exactDev=0;
+    let deadlineShortfall=0,bandDev=0,exactDev=0;
+    infos.forEach(info=>{
+      let required=0;
+      const rows=[...workPlanForDay(state,info.day)].sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));
+      rows.forEach((row,index)=>{
+        required+=row.count;
+        const present=(startsByDay[info.day.d]||[]).filter(t=>t<=timeToMinutes(row.time)).length;
+        deadlineShortfall+=Math.max(0,required-present)*(rows.length-index);
+      });
+    });
     ['weekday','weekend'].forEach(pool=>members.filter(m=>!m.employee).forEach(m=>{
       ['first','second'].forEach(b=>bandDev+=Math.abs(history.band[pool][m.id][b]-(targetBand[pool][m.id][b]||0)));
       const keys=new Set([...Object.keys(history.exact[pool][m.id]),...Object.keys(targetExact[pool][m.id])]);
       keys.forEach(slot=>exactDev+=Math.abs((history.exact[pool][m.id][slot]||0)-(targetExact[pool][m.id][slot]||0)));
     }));
-    const score=[delayTotal,bandDev,exactDev];
+    const score=[deadlineShortfall,delayTotal,bandDev,exactDev];
     if(best===null||lexLess(score,bestScore)){best={times,timeSlots};bestScore=score;}
   }
-  return best||{times:baseTimes,timeSlots:baseSlots};
+  return best||{times:employeeTimes,timeSlots:employeeSlots};
 }
 
 const DEFAULT_VIEWER_URL='https://nosuke10311031-cloud.github.io/shift-maker/view.html';
 function App(){
-  const init=store.load()||{
-    year:new Date().getFullYear(),month:new Date().getMonth()+1,
-    members:[],
-    prefs:{},demand:{weekday:1,weekend:2,override:{}},
-    placed:{},times:{},timeSlots:{},availFrom:{},confM:{},confD:{}
-  };
-  const [s,setS]=useState(init);
+  const [s,setS]=useState(()=>{
+    const saved=store.load();
+    const migrated=!!(saved&&!saved.workPlans);
+    const base=saved||{
+      year:new Date().getFullYear(),month:new Date().getMonth()+1,
+      members:[],prefs:{},placed:{},times:{},timeSlots:{},availFrom:{},confM:{},confD:{},
+      workPlans:cloneDefaultPlans()
+    };
+    return {
+      ...base,
+      workPlans:normalizeWorkPlans(base.workPlans),
+      planRevision:migrated?1:(base.planRevision||0),
+      staffPlanRevision:base.staffPlanRevision||0,
+      timePlanRevision:base.timePlanRevision||0
+    };
+  });
   const [filter,setFilter]=useState('all');
   const [viewMode,setViewMode]=useState('cal');
   const [newName,setNewName]=useState('');
@@ -712,6 +763,7 @@ function App(){
   const [dayPop,setDayPop]=useState(null);
   const [memPop,setMemPop]=useState(null);
   const [timeMsg,setTimeMsg]=useState(null);
+  const [planMsg,setPlanMsg]=useState(null);
   useEffect(()=>store.save(s),[s]);
   // カレンダー(④)の名前を1行に収まるよう自動縮小（折り返し防止）
   useLayoutEffect(()=>{
@@ -751,8 +803,39 @@ function App(){
   const cyclePref=(mid,d)=>{const cur=getPref(mid,d);const next=cur==='×'?'◯':cur==='◯'?'△':'×';set({prefs:{...s.prefs,[mid]:{...(s.prefs[mid]||{}),[d]:next}}});};
   const fillRow=(mid,val)=>{const mp={...(s.prefs[mid]||{})};days.forEach(x=>mp[x.d]=val);set({prefs:{...s.prefs,[mid]:mp}});};
 
-  const setDemand=(k,v)=>set({demand:{...s.demand,[k]:Math.max(0,parseInt(v)||0)}});
-  const setOverride=(d,v)=>{const ov={...s.demand.override};if(v===''||v===null){delete ov[d];}else ov[d]=Math.max(0,parseInt(v)||0);set({demand:{...s.demand,override:ov}});};
+  const updateWorkPlans=(workPlans)=>{
+    set({
+      workPlans,
+      planRevision:(s.planRevision||0)+1
+    });
+    setPlanMsg({ok:true,text:'募集時間設定を変更しました。既存の採用・勤務時間はそのままです。必要に応じて自動作成を再実行してください。'});
+    setTimeMsg(null);
+    setShareCode('');
+  };
+  const setPlanTime=(type,index,value)=>{
+    if(!value||timeToMinutes(value)<15*60){setPlanMsg({ok:false,text:'募集時刻は15:00以降にしてください。'});return;}
+    if(s.workPlans[type].some((row,i)=>i!==index&&row.time===value)){setPlanMsg({ok:false,text:`${PLAN_LABELS[type]}の${value}はすでに登録されています。`});return;}
+    const rows=s.workPlans[type].map((row,i)=>i===index?{...row,time:value}:row).sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));
+    updateWorkPlans({...s.workPlans,[type]:rows});
+  };
+  const setPlanCount=(type,index,value)=>{
+    const count=Math.max(1,parseInt(value)||1);
+    updateWorkPlans({...s.workPlans,[type]:s.workPlans[type].map((row,i)=>i===index?{...row,count}:row)});
+  };
+  const addPlanTime=(type)=>{
+    const used=new Set(s.workPlans[type].map(row=>row.time));
+    const all=[];for(let t=15*60;t<24*60;t+=15)all.push(minutesToTime(t));
+    const latest=Math.max(...s.workPlans[type].map(row=>timeToMinutes(row.time)));
+    const value=all.find(time=>timeToMinutes(time)>latest&&!used.has(time))||all.find(time=>!used.has(time));
+    if(!value){setPlanMsg({ok:false,text:`${PLAN_LABELS[type]}にはこれ以上時刻を追加できません。`});return;}
+    const rows=[...s.workPlans[type],{time:value,count:1}].sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));
+    updateWorkPlans({...s.workPlans,[type]:rows});
+  };
+  const removePlanTime=(type,index)=>{
+    if(s.workPlans[type].length<=1){setPlanMsg({ok:false,text:`${PLAN_LABELS[type]}には最低1つの募集時刻が必要です。`});return;}
+    updateWorkPlans({...s.workPlans,[type]:s.workPlans[type].filter((_,i)=>i!==index)});
+  };
+  const getDemandForDay=(x)=>workPlanTotal(workPlanForDay(s,x));
 
   const confirmedSnapshot=()=>{
     const placed={},times={},timeSlots={};
@@ -780,14 +863,18 @@ function App(){
     return {times:nextTimes,timeSlots:nextSlots};
   };
   const runFill=()=>{
+    const error=validateWorkPlans(s.workPlans);
+    if(error){setPlanMsg({ok:false,text:error});return;}
     const placed=autoFillBest(s,300);
-    set({placed,...timesForPlacement(placed,s.times,s.timeSlots)});
+    set({placed,...timesForPlacement(placed,s.times,s.timeSlots),staffPlanRevision:s.planRevision||0});
   };
   const runFillUnconfirmed=()=>{
+    const error=validateWorkPlans(s.workPlans);
+    if(error){setPlanMsg({ok:false,text:error});return;}
     if(!window.confirm('確定済みの採用・勤務時間を残し、未確定部分を自動で作り直します。よろしいですか？'))return;
     const kept=confirmedSnapshot();
     const placed=autoFillBest({...s,placed:kept.placed,times:kept.times},300);
-    set({placed,...timesForPlacement(placed,kept.times,kept.timeSlots)});
+    set({placed,...timesForPlacement(placed,kept.times,kept.timeSlots),staffPlanRevision:s.planRevision||0});
     setShareCode('');
     setConfOpen(false);
     setDayPop(null);
@@ -811,7 +898,7 @@ function App(){
     if(mode==='unconfirmed'&&!window.confirm('確定済みの勤務時間と社員の13:00を残し、未確定の勤務時間を割り当て直します。よろしいですか？'))return;
     const result=assignWorkTimes(s,mode);
     if(result.error){setTimeMsg({ok:false,text:result.error});return;}
-    set({times:result.times,timeSlots:result.timeSlots});
+    set({times:result.times,timeSlots:result.timeSlots,timePlanRevision:s.planRevision||0});
     setTimeMsg({ok:true,text:mode==='remaining'?'空欄の勤務時間を割り当てました。入力済みの時間は変更していません。':'確定以外の勤務時間を割り当て直しました。'});
     setShareCode('');
   };
@@ -865,7 +952,8 @@ function App(){
   const buildShare=()=>{
     if(!s.members.length)return;
     const idx={};s.members.forEach((m,i)=>{idx[m.id]=i;});
-    const C={y:s.year,m:s.month,n:s.members.map(m=>m.name),a:{},t:{},p:{},v:{},dw:s.demand.weekday,de:s.demand.weekend,ov:s.demand.override||{},h:days.filter(x=>x.holiday).map(x=>x.d)};
+    const C={y:s.year,m:s.month,n:s.members.map(m=>m.name),a:{},t:{},p:{},v:{},dm:{},h:days.filter(x=>x.holiday).map(x=>x.d)};
+    days.forEach(x=>C.dm[x.d]=getDemandForDay(x));
     days.forEach(x=>{
       const ins=s.members.filter(m=>isIn(x.d,m.id)).map(m=>idx[m.id]);
       if(ins.length)C.a[x.d]=ins;
@@ -896,6 +984,8 @@ function App(){
     const w=[];for(let i=0;i<cells.length;i+=7)w.push(cells.slice(i,i+7));
     return w;
   },[s.year,s.month,days]);
+  const staffPlanOutdated=(s.staffPlanRevision||0)!==(s.planRevision||0);
+  const timePlanOutdated=(s.timePlanRevision||0)!==(s.planRevision||0);
 
   return (
     <div className="wrap">
@@ -908,10 +998,28 @@ function App(){
         <div className="row">
           <label className="fl">年<input type="number" value={s.year} onChange={e=>set({year:parseInt(e.target.value)||s.year})}/></label>
           <label className="fl">月<select value={s.month} onChange={e=>set({month:parseInt(e.target.value)})}>{Array.from({length:12},(_,i)=>i+1).map(m=><option key={m} value={m}>{m}月</option>)}</select></label>
-          <label className="fl">平日(月〜木・祝日除く)の募集人数<input type="number" value={s.demand.weekday} onChange={e=>setDemand('weekday',e.target.value)}/></label>
-          <label className="fl">金土日祝の募集人数<input type="number" value={s.demand.weekend} onChange={e=>setDemand('weekend',e.target.value)}/></label>
         </div>
-        <div className="hint">※ 日ごとに人数を変えたいときは、希望表の「募集人数」行で個別に上書きできます。</div>
+        <div className="plan-grid">
+          {PLAN_TYPES.map(type=>(
+            <section className="plan-block" key={type}>
+              <div className="plan-head">
+                <div className="plan-title">{PLAN_LABELS[type]}</div>
+                <div className="plan-total">合計 {workPlanTotal(s.workPlans[type])}名</div>
+              </div>
+              {s.workPlans[type].map((row,index)=>(
+                <div className="plan-row" key={row.time}>
+                  <TimePicker value={row.time} minHour={15} allowClear={false} onChange={value=>setPlanTime(type,index,value)}/>
+                  <input className="plan-count" type="number" min="1" value={row.count} aria-label={`${PLAN_LABELS[type]} ${row.time}の人数`} onChange={e=>setPlanCount(type,index,e.target.value)}/>
+                  <button className="plan-del" disabled={s.workPlans[type].length<=1} onClick={()=>removePlanTime(type,index)} title="この時刻を削除">×</button>
+                </div>
+              ))}
+              <button className="plan-add" onClick={()=>addPlanTime(type)}>＋ 時間を追加</button>
+            </section>
+          ))}
+        </div>
+        <div className="hint">各時間の人数合計が、その曜日区分の募集人数になります。時刻は15分刻み・15:00以降。同じ区分に同じ時刻は登録できません。</div>
+        {planMsg&&<div className={"imp-msg "+(planMsg.ok?'imp-ok':'imp-ng')}>{planMsg.text}</div>}
+        {(staffPlanOutdated||timePlanOutdated)&&<div className="plan-note">設定変更は既存シフトへ自動反映されません。{staffPlanOutdated?'勤務者は「確定以外を自動作成」、':''}{timePlanOutdated?'勤務時間は「確定以外の出勤時間を自動割り当て」':''}で新設定から組み直せます。</div>}
       </div>
 
       {/* 2 メンバー */}
@@ -959,7 +1067,7 @@ function App(){
             <tbody>
               <tr>
                 <td className="namecol" style={{color:'var(--muted)',fontSize:12}}>募集人数</td>
-                {days.map(x=>{const def=x.we?s.demand.weekend:s.demand.weekday;const val=s.demand.override[x.d];return <td key={x.d} style={{background:'#faf7f0'}}><input className="demand-input" value={val??''} placeholder={def} onChange={e=>setOverride(x.d,e.target.value)}/></td>;})}
+                {days.map(x=><td key={x.d} style={{background:'#faf7f0'}}><span className="demand-value">{getDemandForDay(x)}</span></td>)}
               </tr>
               {s.members.map(m=>(
                 <tr key={m.id}>
@@ -1011,10 +1119,7 @@ function App(){
             <button className="btn accent sm" onClick={()=>runWorkTimeFill('unconfirmed')} disabled={!s.members.length}>確定以外の出勤時間を自動割り当て</button>
           </div>
           <dl className="shift-guide" aria-label="出勤時間の目安">
-            <dt>平日</dt><dd>17:00−4名 ／ 18:00−2名</dd>
-            <dt>金</dt><dd>15:30−3名 ／ 17:00−1名 ／ 17:30−1名</dd>
-            <dt>土・祝</dt><dd>15:30−3名 ／ 16:00−1名 ／ 17:00−2名</dd>
-            <dt>日</dt><dd>15:00−3名 ／ 17:00−2名 ／ 17:30−1名</dd>
+            {PLAN_TYPES.map(type=><React.Fragment key={type}><dt>{PLAN_LABELS[type].replace('（月〜木）','')}</dt><dd>{formatWorkPlan(s.workPlans[type])}</dd></React.Fragment>)}
           </dl>
           <span className="cf-wrap" style={{marginLeft:'auto'}}>
             <button className="btn ghost sm" onClick={()=>setConfOpen(o=>!o)} disabled={!s.members.length}>確定 {confOpen?'▲':'▼'}</button>
@@ -1041,15 +1146,14 @@ function App(){
             {['日','月','火','水','木','金','土'].map((w,i)=><div key={w} className={"cal-head"+(i===0||i>=5?" we":"")}>{w}</div>)}
             {weeks.map((week,wi)=>week.map((x,ci)=>{
               if(!x)return <div key={wi+'-'+ci} className="cal-cell blank"></div>;
-              const def=(s.demand.override[x.d]??(x.we?s.demand.weekend:s.demand.weekday));
-              const over=s.demand.override[x.d]!==undefined;
+              const def=getDemandForDay(x);
               let rows=[...s.members];
               if(filter!=='all')rows=rows.filter(m=>m.id===filter);
               const inCount=s.members.filter(m=>isIn(x.d,m.id)).length;
               return (
                 <div key={x.d} className={"cal-cell"+(x.we?" we":"")}>
                   <div className={"cal-date"+(inCount<def?" short":"")}><span title={x.holiday||''}><span className="dnum" onClick={e=>openDayPop(e,x.d)}>{x.d}</span><span style={{fontSize:9,color:x.we?'var(--weekend)':'var(--muted)',marginLeft:2}}>{WD[x.dow]}{x.holiday?'（祝）':''}</span>{s.confD&&s.confD[x.d]?<span className="lk">🔒</span>:null}</span>
-                    <span className={"cap"+(over?" over":"")}>{inCount}/{def}</span></div>
+                    <span className="cap">{inCount}/{def}</span></div>
                   {rows.map(m=>{
                     const p=getPref(m.id,x.d);const inn=isIn(x.d,m.id);const av=getAvail(m.id,x.d);
                     const wish=(p==='◯'||p==='△');
