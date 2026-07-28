@@ -93,7 +93,60 @@ body{padding:10px 2px 50px}
     t=String(t||'');
     return /^\d{4}$/.test(t)?t.slice(0,2)+':'+t.slice(2):t;
   }
+  var PACK_CHARS='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_';
+  function unpackSmall(ch){return ch?PACK_CHARS.indexOf(ch):-1;}
+  function unpackTime2(str){
+    str=String(str||'');
+    if(str.length<2)return '';
+    var q=unpackSmall(str.charAt(0))*64+unpackSmall(str.charAt(1));
+    if(q<0||q>95)return '';
+    var min=q*15,h=Math.floor(min/60),m=min%60;
+    return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+  }
+  function unpackDayTimes(str,fn){
+    str=String(str||'');
+    for(var i=0;i+2<str.length;i+=3){
+      var d=unpackSmall(str.charAt(i));
+      var t=unpackTime2(str.slice(i+1,i+3));
+      if(d>0&&t)fn(d,t);
+    }
+  }
   function unpackShare(c){
+    if(c.z===3){
+      var dim3=new Date(c.y,c.m,0).getDate();
+      var assignments3={},times3={},prefs3={},avail3={},dailyDemand3={};
+      for(var d3=1;d3<=dim3;d3++){
+        var dc=c.d&&c.d.charAt(d3-1),dv=unpackSmall(dc);
+        if(dv>=0)dailyDemand3[d3]=dv;
+        var row3=c.a&&c.a[d3-1];
+        if(row3){
+          var ids=[];
+          for(var ri=0;ri<row3.length;ri++){var idv=unpackSmall(row3.charAt(ri));if(idv>=0)ids.push(idv);}
+          if(ids.length)assignments3[d3]=ids;
+        }
+      }
+      (c.p||[]).forEach(function(str,i){
+        if(!str)return;
+        var pr={};
+        for(var x=0;x<str.length&&x<dim3;x++){
+          if(str.charAt(x)==='1')pr[x+1]='◯';
+          else if(str.charAt(x)==='2')pr[x+1]='△';
+        }
+        if(Object.keys(pr).length)prefs3[i]=pr;
+      });
+      (c.v||[]).forEach(function(str,i){
+        unpackDayTimes(str,function(d,t){if(!avail3[i])avail3[i]={};avail3[i][d]=t;});
+      });
+      (c.t||[]).forEach(function(str,i){
+        unpackDayTimes(str,function(d,t){times3[i+'-'+d]=t;});
+      });
+      return {
+        year:c.y,month:c.m,
+        members:(c.n||[]).map(function(name,i){return {id:i,name:name};}),
+        assignments:assignments3,times:times3,prefs:prefs3,avail:avail3,
+        dw:0,de:0,ov:{},dailyDemand:dailyDemand3,holidays:c.h||[]
+      };
+    }
     if(c.z===2){
       var dim=new Date(c.y,c.m,0).getDate();
       var assignments={},times={},prefs={},avail={},dailyDemand={};
