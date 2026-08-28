@@ -52,9 +52,13 @@
   .icell.special-conflict{box-shadow:inset 0 0 0 2px #c84646;background:#fff3f3}
   .ipref.pdouble{color:#18754d;background:#d5efe2}
   .special-list{display:flex;flex-direction:column;gap:8px}
-  .special-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#faf7f0}
-  .special-row select{min-width:110px}
-  .special-error{width:100%;color:#b3261e;font-size:12px;font-weight:700;line-height:1.5}
+  .special-label{font-size:12px;color:var(--muted);font-weight:700;margin-bottom:5px}
+  .special-row{display:grid;grid-template-columns:minmax(0,190px) auto;gap:8px;align-items:center;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#faf7f0}
+  .special-date{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:38px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;text-align:left}
+  .special-date.empty{color:var(--muted);font-weight:500}
+  .special-date::after{content:'⌄';color:var(--accent);font-size:16px;line-height:1}
+  .special-remove{align-self:center;white-space:nowrap}
+  .special-error{grid-column:1/-1;color:#b3261e;font-size:12px;font-weight:700;line-height:1.5}
   .special-note{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
   /* 提出コード */
   .codebox{background:#f7f4ec;border:1px dashed var(--line);border-radius:10px;padding:12px;font-family:monospace;font-size:12px;word-break:break-all;line-height:1.5;max-height:120px;overflow:auto}
@@ -84,6 +88,7 @@
   .colon{font-size:20px;font-weight:700;z-index:1}
   .wheel{position:relative;z-index:1;height:114px;width:78px;overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none;text-align:center}
   .wheel::-webkit-scrollbar{display:none}
+  .wheel.day{width:180px}
   .wpad{height:38px}
   .witem{height:38px;line-height:38px;scroll-snap-align:center;font-size:19px;color:#b8b1a4;cursor:pointer;font-variant-numeric:tabular-nums}
   .witem.sel{color:var(--accent);font-weight:700}
@@ -141,7 +146,8 @@
 
   <div class="card">
     <h2><span class="num">◎</span>特別勤務希望日</h2>
-    <div class="hint" style="margin-top:0;margin-bottom:10px">「この日は絶対に入りたい」という日だけ設定してください。スマホでは日付欄をタップするとホイール形式で選べます。</div>
+    <div class="hint" style="margin-top:0;margin-bottom:10px">「この日は絶対に入りたい」という日だけ設定してください。日付欄をタップして、ホイールから選べます。</div>
+    <div class="special-label">日付</div>
     <div class="special-list" id="special-list"></div>
     <button class="btn sm ghost" data-act="add-special" style="margin-top:10px">＋ 特別勤務希望日を追加</button>
     <div class="special-note">特別勤務希望日は、上のカレンダーでも必ず◯にしてください。内容が矛盾している場合は提出コードを作成できません。</div>
@@ -260,14 +266,12 @@
     return errors;
   }
   function renderSpecial(){
-    var list=document.getElementById('special-list'),n=dim(S.year,S.month),rows=(S.must&&S.must.length)?S.must:[0],errors=specialErrors(),used=specialDays();
+    var list=document.getElementById('special-list'),rows=(S.must&&S.must.length)?S.must:[0],errors=specialErrors();
     var h='';
     rows.forEach(function(raw,index){
       var value=parseInt(raw)||0;var err=errors.find(function(x){return x.index===index;});
-      h+='<div class="special-row"><label class="fl">日付<select data-special-index="'+index+'"><option value="">日付を選択</option>';
-      for(var d=1;d<=n;d++){var disabled=used.indexOf(d)>=0&&d!==value;h+='<option value="'+d+'"'+(d===value?' selected':'')+(disabled?' disabled':'')+'>'+S.month+'月'+d+'日</option>';}
-      h+='</select></label>';
-      if(value||S.must.length>1)h+='<button class="btn sm ghost" data-act="remove-special" data-index="'+index+'">削除</button>';
+      h+='<div class="special-row"><button class="special-date'+(value?'':' empty')+'" data-act="special-date" data-index="'+index+'">'+(value?S.month+'月'+value+'日':'日付を選択')+'</button>';
+      if(value||S.must.length>1)h+='<button class="btn sm ghost special-remove" data-act="remove-special" data-index="'+index+'">削除</button>';
       if(err)h+='<div class="special-error">⚠ '+esc(err.text)+'</div>';
       h+='</div>';
     });
@@ -286,7 +290,7 @@
   }
 
   // ---- 時刻ホイール ----
-  var curD=null,wh='17',wm='00';
+  var curD=null,wh='17',wm='00',specialIndex=null,specialDay='1';
   function openWheel(d){
     curD=d;var v=avail(d);wh=v?v.split(':')[0]:'17';wm=v?v.split(':')[1]:'00';
     var ov=document.createElement('div');ov.className='ov';ov.id='ov';ov.onclick=closeWheel;
@@ -301,10 +305,25 @@
     document.getElementById('w-clr').onclick=function(){delete S.avail[curD];persist();renderCal();closeWheel();};
     document.getElementById('w-ok').onclick=function(){S.avail[curD]=wh+':'+wm;persist();renderCal();closeWheel();};
   }
+  function openSpecialWheel(index){
+    specialIndex=index;var current=parseInt((S.must||[])[index])||0;var used=specialDays().filter(function(d){return d!==current;});var items=[];
+    for(var d=1;d<=dim(S.year,S.month);d++){if(used.indexOf(d)<0)items.push(String(d));}
+    if(!items.length){document.getElementById('special-msg').innerHTML='<div class="msg ng">選択できる日付がありません。</div>';return;}
+    specialDay=current?String(current):items[0];
+    var ov=document.createElement('div');ov.className='ov';ov.id='ov';ov.onclick=closeWheel;
+    var pop=document.createElement('div');pop.className='pop';pop.id='pop';
+    pop.innerHTML='<div class="ttl">'+S.month+'月の特別勤務希望日（上下にスライド）</div>'
+      +'<div class="wheels"><div class="band"></div><div class="wheel day" id="wh-d"></div></div>'
+      +'<div class="actions"><button class="clr" id="w-clr">キャンセル</button><button class="ok" id="w-ok">決定</button></div>';
+    document.body.appendChild(ov);document.body.appendChild(pop);
+    buildWheel('wh-d',items,specialDay,function(v){specialDay=v;},function(v){return S.month+'月'+parseInt(v)+'日';});
+    document.getElementById('w-clr').onclick=closeWheel;
+    document.getElementById('w-ok').onclick=function(){setSpecial(specialIndex,parseInt(specialDay));closeWheel();};
+  }
   function closeWheel(){var o=document.getElementById('ov'),p=document.getElementById('pop');if(o)o.remove();if(p)p.remove();}
-  function buildWheel(id,items,val,onSet){
+  function buildWheel(id,items,val,onSet,format){
     var el=document.getElementById(id);var h='<div class="wpad"></div>';
-    for(var i=0;i<items.length;i++){h+='<div class="witem'+(items[i]===val?' sel':'')+'" data-v="'+items[i]+'">'+items[i]+'</div>';}
+    for(var i=0;i<items.length;i++){h+='<div class="witem'+(items[i]===val?' sel':'')+'" data-v="'+items[i]+'">'+esc(format?format(items[i]):items[i])+'</div>';}
     h+='<div class="wpad"></div>';el.innerHTML=h;
     var idx=items.indexOf(val);if(idx>=0)el.scrollTop=idx*WH;
     var to=null;
@@ -386,9 +405,9 @@
     else if(act==='load-code')loadCode();
     else if(act==='fit')toggleFit();
     else if(act==='add-special')addSpecial();
+    else if(act==='special-date')openSpecialWheel(parseInt(t.dataset.index));
     else if(act==='remove-special')removeSpecial(parseInt(t.dataset.index));
   });
-  document.addEventListener('change',function(e){var t=e.target.closest('[data-special-index]');if(t)setSpecial(parseInt(t.dataset.specialIndex),t.value);});
 
   renderCal();renderSpecial();
 })();
