@@ -65,6 +65,7 @@
   .mp-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;color:#2b2724;font-weight:500}
   .mp-row input{width:64px;padding:5px 6px;font-size:13px;border-radius:8px;text-align:center}
   .pref-maru{color:var(--maru);background:var(--maru-bg)}
+  .pref-double{color:#18754d;background:#d5efe2}
   .pref-sankaku{color:var(--sankaku);background:var(--sankaku-bg)}
   .pref-batsu{color:var(--batsu);background:var(--batsu-bg)}
   .demand-value{display:block;text-align:center;padding:6px 2px;font-size:13px;font-weight:700;color:var(--ink)}
@@ -104,6 +105,10 @@
   .sum-table td.n{text-align:center;font-variant-numeric:tabular-nums}
   .sum-table .big{font-family:'Zen Maru Gothic';font-weight:700;font-size:15px}
   .warn{color:var(--accent);font-size:11px}
+  .error-cell{min-width:150px;text-align:left!important;white-space:normal!important;vertical-align:top}
+  .shift-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .shift-title-row h2{margin-bottom:14px}
+  .special-overflow{margin-left:auto;max-width:480px;padding:8px 10px;border:1px solid #e0a3a3;border-radius:9px;background:#fff0f0;color:#a32626;font-size:11px;font-weight:700;line-height:1.55}
   /* calendar */
   .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-top:6px;width:100%;min-width:0}
   .cal-head{font-size:12px;font-weight:700;text-align:center;padding:4px 0;color:var(--muted)}
@@ -756,11 +761,13 @@ function App(){
     const migrated=!!(saved&&!saved.workPlans);
     const base=saved||{
       year:new Date().getFullYear(),month:new Date().getMonth()+1,
-      members:[],prefs:{},placed:{},times:{},timeSlots:{},availFrom:{},confM:{},confD:{},
+      members:[],prefs:{},placed:{},times:{},timeSlots:{},availFrom:{},confM:{},confD:{},specialPrefs:{},specialApplied:{},
       workPlans:cloneDefaultPlans()
     };
     return {
       ...base,
+      specialPrefs:base.specialPrefs||{},
+      specialApplied:base.specialApplied||{},
       workPlans:normalizeWorkPlans(base.workPlans),
       planRevision:migrated?1:(base.planRevision||0),
       staffPlanRevision:base.staffPlanRevision||0,
@@ -803,7 +810,28 @@ function App(){
   const days=useMemo(()=>{const a=[],holidays=japaneseHolidays(s.year);for(let d=1;d<=dim;d++){const dow=new Date(s.year,s.month-1,d).getDay();const holiday=holidays[dateKey(s.year,s.month,d)]||'';a.push({d,dow,holiday,we:isWeekend(dow)||!!holiday});}return a;},[s.year,s.month,dim]);
 
   const addMember=()=>{const name=(newName||'').trim();if(!name)return;set({members:[...s.members,{id:uid(),name,noConsec:0,maxDays:0,employee:false}]});setNewName('');};
-  const delMember=(id)=>set({members:s.members.filter(m=>m.id!==id)});
+  const removeMemberData=(ids)=>{
+    const removing=new Set(ids),members=s.members.filter(m=>!removing.has(m.id));
+    const dropMemberMap=(source)=>{const out={...(source||{})};ids.forEach(id=>delete out[id]);return out;};
+    const placed={};Object.keys(s.placed||{}).forEach(d=>{const dm={...(s.placed[d]||{})};ids.forEach(id=>delete dm[id]);if(Object.keys(dm).length)placed[d]=dm;});
+    const dropTimeMap=(source)=>{const out={};Object.keys(source||{}).forEach(key=>{if(!ids.some(id=>key.startsWith(id+'-')))out[key]=source[key];});return out;};
+    set({
+      members,
+      prefs:dropMemberMap(s.prefs),
+      availFrom:dropMemberMap(s.availFrom),
+      specialPrefs:dropMemberMap(s.specialPrefs),
+      specialApplied:dropMemberMap(s.specialApplied),
+      confM:dropMemberMap(s.confM),
+      confD:members.length?(s.confD||{}):{},
+      placed,
+      times:dropTimeMap(s.times),
+      timeSlots:dropTimeMap(s.timeSlots)
+    });
+    if(filter!=='all'&&removing.has(filter))setFilter('all');
+    setMemPop(null);setConfOpen(false);setDayPop(null);
+  };
+  const delMember=(id)=>removeMemberData([id]);
+  const delAllMembers=()=>{if(!s.members.length)return;if(window.confirm(`${s.members.length}名のメンバーと、希望・採用・勤務時間・確定情報をすべて削除します。よろしいですか？`))removeMemberData(s.members.map(m=>m.id));};
   const moveMember=(id,dir)=>{const a=[...s.members];const i=a.findIndex(m=>m.id===id);const j=i+dir;if(j<0||j>=a.length)return;const t=a[i];a[i]=a[j];a[j]=t;set({members:a});};
   const setMemberName=(id,name)=>set({members:s.members.map(m=>m.id===id?{...m,name}:m)});
   const setConsec=(id,v)=>set({members:s.members.map(m=>m.id===id?{...m,noConsec:Math.max(0,parseInt(v)||0)}:m)});
@@ -821,8 +849,16 @@ function App(){
   };
 
   const getPref=(mid,d)=>(s.prefs[mid]&&s.prefs[mid][d])||'×';
-  const cyclePref=(mid,d)=>{const cur=getPref(mid,d);const next=cur==='×'?'◯':cur==='◯'?'△':'×';set({prefs:{...s.prefs,[mid]:{...(s.prefs[mid]||{}),[d]:next}}});};
-  const fillRow=(mid,val)=>{const mp={...(s.prefs[mid]||{})};days.forEach(x=>mp[x.d]=val);set({prefs:{...s.prefs,[mid]:mp}});};
+  const isSpecial=(mid,d)=>!!(s.specialPrefs&&s.specialPrefs[mid]&&s.specialPrefs[mid][d]);
+  const shownPref=(mid,d)=>isSpecial(mid,d)?'◎':getPref(mid,d);
+  const cyclePref=(mid,d)=>{
+    if(isSpecial(mid,d)){
+      const sm={...((s.specialPrefs&&s.specialPrefs[mid])||{})},sa={...((s.specialApplied&&s.specialApplied[mid])||{})};delete sm[d];delete sa[d];
+      set({specialPrefs:{...(s.specialPrefs||{}),[mid]:sm},specialApplied:{...(s.specialApplied||{}),[mid]:sa}});return;
+    }
+    const cur=getPref(mid,d);const next=cur==='×'?'◯':cur==='◯'?'△':'×';set({prefs:{...s.prefs,[mid]:{...(s.prefs[mid]||{}),[d]:next}}});
+  };
+  const fillRow=(mid,val)=>{const mp={...(s.prefs[mid]||{})};days.forEach(x=>mp[x.d]=val);set({prefs:{...s.prefs,[mid]:mp},specialPrefs:{...(s.specialPrefs||{}),[mid]:{}},specialApplied:{...(s.specialApplied||{}),[mid]:{}}});};
 
   const updateWorkPlans=(workPlans)=>{
     set({
@@ -895,14 +931,14 @@ function App(){
     if(!window.confirm('確定済みの採用・勤務時間を残し、未確定部分を自動で作り直します。よろしいですか？'))return;
     const kept=confirmedSnapshot();
     const placed=autoFillBest({...s,placed:kept.placed,times:kept.times},300);
-    set({placed,...timesForPlacement(placed,kept.times,kept.timeSlots),staffPlanRevision:s.planRevision||0});
+    set({placed,...timesForPlacement(placed,kept.times,kept.timeSlots),specialApplied:{},staffPlanRevision:s.planRevision||0});
     setShareCode('');
     setConfOpen(false);
     setDayPop(null);
   };
   const clearAll=()=>{
     if(!window.confirm('採用結果・勤務時間・人/日の確定をすべて消します。希望入力（◯△×・希望時間）は残ります。よろしいですか？'))return;
-    set({placed:{},confM:{},confD:{},times:{},timeSlots:{}});
+    set({placed:{},confM:{},confD:{},times:{},timeSlots:{},specialApplied:{}});
     setShareCode('');
     setConfOpen(false);
     setDayPop(null);
@@ -910,7 +946,7 @@ function App(){
   const clearUnconfirmed=()=>{
     if(!window.confirm('確定済みの採用・勤務時間だけを残し、それ以外をすべて消します。よろしいですか？'))return;
     const kept=confirmedSnapshot();
-    set({placed:kept.placed,...timesForPlacement(kept.placed,kept.times,kept.timeSlots)});
+    set({placed:kept.placed,...timesForPlacement(kept.placed,kept.times,kept.timeSlots),specialApplied:{}});
     setShareCode('');
     setConfOpen(false);
     setDayPop(null);
@@ -927,11 +963,11 @@ function App(){
   const isIn=(d,mid)=>!!(s.placed[d]&&s.placed[d][mid]);
   const toggleAssign=(d,mid)=>{
     if(isConf(d,mid))return;
-    const dm={...(s.placed[d]||{})},times={...(s.times||{})},timeSlots={...(s.timeSlots||{})};
+    const dm={...(s.placed[d]||{})},times={...(s.times||{})},timeSlots={...(s.timeSlots||{})},sa={...((s.specialApplied&&s.specialApplied[mid])||{})};
     const key=`${mid}-${d}`,member=s.members.find(m=>m.id===mid);
-    if(dm[mid]){delete dm[mid];delete times[key];delete timeSlots[key];}
+    if(dm[mid]){delete dm[mid];delete times[key];delete timeSlots[key];delete sa[d];}
     else{dm[mid]=true;if(member&&member.employee)times[key]='13:00';}
-    set({placed:{...s.placed,[d]:dm},times,timeSlots});
+    set({placed:{...s.placed,[d]:dm},times,timeSlots,specialApplied:{...(s.specialApplied||{}),[mid]:sa}});
   };
   const setTime=(mid,d,v)=>{
     if(isConf(d,mid))return;
@@ -940,7 +976,7 @@ function App(){
     set({times:{...(s.times||{}),[key]:v},timeSlots});
   };
   const setAvail=(mid,d,v)=>set({availFrom:{...(s.availFrom||{}),[mid]:{...((s.availFrom&&s.availFrom[mid])||{}),[d]:v}}});
-  const prefClass=(p)=>p==='◯'?'pref-maru':p==='△'?'pref-sankaku':'pref-batsu';
+  const prefClass=(p)=>p==='◎'?'pref-double':p==='◯'?'pref-maru':p==='△'?'pref-sankaku':'pref-batsu';
 
   const getAvail=(mid,d)=>(s.availFrom&&s.availFrom[mid]&&s.availFrom[mid][d])||'';
   const isConf=(d,mid)=>!!((s.confM&&s.confM[mid])||(s.confD&&s.confD[d]));
@@ -955,17 +991,34 @@ function App(){
   const importCode=()=>{
     const obj=decodeSubmission(importText);
     if(!obj||obj.t!=='shift-pref'){setImportMsg({ok:false,text:'コードを読み取れませんでした。貼り付け内容を確認してください。'});return;}
-    const warn=(obj.y!==s.year||obj.m!==s.month)?`（注意：このコードは ${obj.y}年${obj.m}月 の希望です。現在の表は ${s.year}年${s.month}月）`:'';
+    const codeYear=parseInt(obj.y),codeMonth=parseInt(obj.m);
+    if(codeYear!==s.year||codeMonth!==s.month){
+      const text=`この提出コードは ${codeYear||'不明'}年${codeMonth||'不明'}月分です。現在の管理画面は ${s.year}年${s.month}月分のため、取り込みを中止しました。`;
+      window.alert(text);setImportMsg({ok:false,text});return;
+    }
+    const name=String(obj.name||'').trim();
+    if(!name){setImportMsg({ok:false,text:'名前が入っていないため、取り込みを中止しました。'});return;}
+    const rawPrefs=obj.p&&typeof obj.p==='object'?{...obj.p}:{};const must=Array.isArray(obj.must)?obj.must.map(d=>Number(d)):[];
+    Object.keys(rawPrefs).forEach(d=>{if(rawPrefs[d]==='◎'){rawPrefs[d]='◯';must.push(parseInt(d));}});
+    const invalidMust=must.some(d=>!Number.isInteger(d)||d<1||d>dim);
+    if(invalidMust){setImportMsg({ok:false,text:'特別勤務希望日に対象月以外の日付が含まれているため、取り込みを中止しました。提出者にコードの作り直しを依頼してください。'});return;}
+    const mustDays=[...new Set(must)].filter(d=>Number.isInteger(d)&&d>=1&&d<=dim);
+    const badPref=Object.keys(rawPrefs).some(d=>!['◯','△','×'].includes(rawPrefs[d]));
+    if(badPref||mustDays.some(d=>rawPrefs[d]!=='◯')){setImportMsg({ok:false,text:'特別勤務希望日と通常希望が一致していないため、取り込みを中止しました。提出者にコードの作り直しを依頼してください。'});return;}
     let mid,members=s.members,added=false;
-    const exist=members.find(x=>x.name===obj.name);
+    const exist=members.find(x=>x.name===name);
     if(exist){mid=exist.id;members=members.map(x=>x.id===mid?{...x,noConsec:obj.nc||0,maxDays:obj.md||0,employee:!!obj.e}:x);}
-    else{mid=uid();members=[...members,{id:mid,name:obj.name,noConsec:obj.nc||0,maxDays:obj.md||0,employee:!!obj.e}];added=true;}
-    const newPrefs={...s.prefs,[mid]:{...obj.p}};
+    else{mid=uid();members=[...members,{id:mid,name,noConsec:obj.nc||0,maxDays:obj.md||0,employee:!!obj.e}];added=true;}
+    const newPrefs={...s.prefs,[mid]:rawPrefs};
     const newAvail={...(s.availFrom||{}),[mid]:{...(obj.a||{})}};
-    const times={...(s.times||{})},timeSlots={...(s.timeSlots||{})};
-    if(obj.e)days.forEach(x=>{if(isIn(x.d,mid)){times[`${mid}-${x.d}`]='13:00';delete timeSlots[`${mid}-${x.d}`];}});
-    set({members,prefs:newPrefs,availFrom:newAvail,times,timeSlots});
-    setImportMsg({ok:true,text:`${obj.name} さんの希望を${added?'新規に追加':'上書き反映'}しました。${warn}`});
+    const times={...(s.times||{})},timeSlots={...(s.timeSlots||{})},placed={...(s.placed||{})};
+    const oldApplied=(s.specialApplied&&s.specialApplied[mid])||{};
+    Object.keys(oldApplied).forEach(raw=>{const d=parseInt(raw),dm={...(placed[d]||{})};delete dm[mid];delete times[`${mid}-${d}`];delete timeSlots[`${mid}-${d}`];placed[d]=dm;});
+    const specialMap={},appliedMap={};mustDays.forEach(d=>{specialMap[d]=true;appliedMap[d]=true;placed[d]={...(placed[d]||{}),[mid]:true};if(obj.e){times[`${mid}-${d}`]='13:00';delete timeSlots[`${mid}-${d}`];}});
+    const specialPrefs={...(s.specialPrefs||{}),[mid]:specialMap},specialApplied={...(s.specialApplied||{}),[mid]:appliedMap};
+    if(obj.e)days.forEach(x=>{if(placed[x.d]&&placed[x.d][mid]){times[`${mid}-${x.d}`]='13:00';delete timeSlots[`${mid}-${x.d}`];}});
+    set({members,prefs:newPrefs,availFrom:newAvail,placed,times,timeSlots,specialPrefs,specialApplied});
+    setImportMsg({ok:true,text:`${name} さんの希望を${added?'新規に追加':'上書き反映'}しました。${mustDays.length?` 特別勤務希望日${mustDays.length}日分には採用◯を付けました。`:''}`});
     setImportText('');
   };
 
@@ -1078,6 +1131,11 @@ function App(){
   },[s.year,s.month,days]);
   const staffPlanOutdated=(s.staffPlanRevision||0)!==(s.planRevision||0);
   const timePlanOutdated=(s.timePlanRevision||0)!==(s.planRevision||0);
+  const specialOverflow=days.map(x=>{
+    const count=s.members.filter(m=>isSpecial(m.id,x.d)).length;
+    const demand=getDemandForDay(x);
+    return count>demand?{d:x.d,count,demand}:null;
+  }).filter(Boolean);
 
   return (
     <div className="wrap">
@@ -1114,6 +1172,17 @@ function App(){
         {(staffPlanOutdated||timePlanOutdated)&&<div className="plan-note">設定変更は既存シフトへ自動反映されません。{staffPlanOutdated?'勤務者は「確定以外を自動作成」、':''}{timePlanOutdated?'勤務時間は「確定以外の出勤時間を自動割り当て」':''}で新設定から組み直せます。</div>}
       </div>
 
+      {/* 希望の取り込み */}
+      <div className="card">
+        <h2><span className="num">＋</span>提出コードを取り込む</h2>
+        <div className="hint" style={{marginTop:0,marginBottom:8}}>バイトから送られてきた提出コードを貼り付けて取り込みます。同じ名前は上書き、未登録の名前は自動で追加されます。</div>
+        <div className="row" style={{alignItems:'stretch'}}>
+          <input value={importText} placeholder="提出コードを貼り付け" onChange={e=>setImportText(e.target.value)} style={{flex:'1 1 320px'}}/>
+          <button className="btn accent" onClick={importCode}>取り込む</button>
+        </div>
+        {importMsg&&<div className={"imp-msg "+(importMsg.ok?'imp-ok':'imp-ng')}>{importMsg.text}</div>}
+      </div>
+
       {/* 2 メンバー */}
       <div className="card">
         <h2><span className="num">2</span>メンバー <span style={{fontSize:11,fontWeight:400,color:'var(--muted)'}}>／ 連勤禁止：「3」で3連勤を禁止（＝最大2連勤）。最大勤務：月の上限日数。どちらも空欄（—）＝制限なし</span></h2>
@@ -1130,18 +1199,9 @@ function App(){
           ))}
           <input value={newName} placeholder="名前を入力" onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addMember();}} style={{width:120}}/>
           <button className="btn sm accent" onClick={addMember}>＋ 追加</button>
+          <button className="btn sm ghost" onClick={delAllMembers} disabled={!s.members.length}>メンバーを一括削除</button>
         </div>
-      </div>
-
-      {/* 2.5 希望の取り込み */}
-      <div className="card">
-        <h2><span className="num">＋</span>提出コードを取り込む</h2>
-        <div className="hint" style={{marginTop:0,marginBottom:8}}>バイトから送られてきた提出コードを貼り付けて取り込みます。同じ名前は上書き、未登録の名前は自動で追加されます。</div>
-        <div className="row" style={{alignItems:'stretch'}}>
-          <input value={importText} placeholder="提出コードを貼り付け" onChange={e=>setImportText(e.target.value)} style={{flex:'1 1 320px'}}/>
-          <button className="btn accent" onClick={importCode}>取り込む</button>
-        </div>
-        {importMsg&&<div className={"imp-msg "+(importMsg.ok?'imp-ok':'imp-ng')}>{importMsg.text}</div>}
+        <div className="hint">削除すると、そのメンバーの希望・希望時間・特別勤務希望日・採用・勤務時間・確定情報もすべて削除されます。</div>
       </div>
 
       {/* 3 希望入力 */}
@@ -1149,6 +1209,7 @@ function App(){
         <h2><span className="num">3</span>希望入力</h2>
         <div className="legend" style={{marginBottom:8}}>
           <span><b className="pref-maru" style={{padding:'1px 6px',borderRadius:4}}>◯</b> 可能(1.0)</span>
+          <span><b className="pref-double" style={{padding:'1px 6px',borderRadius:4}}>◎</b> 特別勤務希望日(1.0)</span>
           <span><b className="pref-sankaku" style={{padding:'1px 6px',borderRadius:4}}>△</b> 他にいなければ可(0.5)</span>
           <span><b className="pref-batsu" style={{padding:'1px 6px',borderRadius:4}}>×</b> 不可</span>
           <span style={{marginLeft:4}}>セルをタップで ×→◯→△→× 切替</span>
@@ -1171,7 +1232,7 @@ function App(){
                       <button className="btn sm ghost" style={{padding:'1px 6px',fontSize:10}} onClick={()=>fillRow(m.id,'×')}>全×</button>
                     </div>
                   </td>
-                  {days.map(x=>{const p=getPref(m.id,x.d);return <td key={x.d} className={"pref-cell "+prefClass(p)}><div className="pcell-mark" onClick={()=>cyclePref(m.id,x.d)}>{p}</div>{p!=='×'&&<div className="pcell-time"><TimePicker value={getAvail(m.id,x.d)} onChange={v=>setAvail(m.id,x.d,v)} suffix="〜"/></div>}</td>;})}
+                  {days.map(x=>{const p=shownPref(m.id,x.d);return <td key={x.d} className={"pref-cell "+prefClass(p)}><div className="pcell-mark" onClick={()=>cyclePref(m.id,x.d)}>{p}</div>{p!=='×'&&<div className="pcell-time"><TimePicker value={getAvail(m.id,x.d)} onChange={v=>setAvail(m.id,x.d,v)} suffix="〜"/></div>}</td>;})}
                 </tr>
               ))}
             </tbody>
@@ -1196,7 +1257,10 @@ function App(){
 
       {/* 4 シフト作成 */}
       <div className="card shift-card">
-        <h2><span className="num">4</span>シフト作成 <span style={{fontSize:11,fontWeight:400,color:'var(--muted)'}}>／ マスをタップで採用◯を付け外し・時刻もタップ</span></h2>
+        <div className="shift-title-row">
+          <h2><span className="num">4</span>シフト作成 <span style={{fontSize:11,fontWeight:400,color:'var(--muted)'}}>／ マスをタップで採用◯を付け外し・時刻もタップ</span></h2>
+          {specialOverflow.length>0&&<div className="special-overflow">{specialOverflow.map(x=><div key={x.d}>⚠ {s.month}月{x.d}日は◎希望が定員を超過しています（◎{x.count}名／募集{x.demand}名）</div>)}</div>}
+        </div>
         <div className="toolbar">
           <div className="fill-stack">
             <button className="btn accent" onClick={runFill} disabled={!s.members.length}>残りを自動で作成 ▶</button>
@@ -1247,14 +1311,14 @@ function App(){
                   <div className={"cal-date"+(inCount<def?" short":"")}><span title={x.holiday||''}><span className="dnum" onClick={e=>openDayPop(e,x.d)}>{x.d}</span><span style={{fontSize:9,color:x.we?'var(--weekend)':'var(--muted)',marginLeft:2}}>{WD[x.dow]}{x.holiday?'（祝）':''}</span>{s.confD&&s.confD[x.d]?<span className="lk">🔒</span>:null}</span>
                     <span className="cap">{inCount}/{def}</span></div>
                   {rows.map(m=>{
-                    const p=getPref(m.id,x.d);const inn=isIn(x.d,m.id);const av=getAvail(m.id,x.d);
-                    const wish=(p==='◯'||p==='△');
-                    const cc=p==='◯'?'cmaru':p==='△'?'csankaku':'cbatsu';
+                    const raw=getPref(m.id,x.d),p=shownPref(m.id,x.d);const inn=isIn(x.d,m.id);const av=getAvail(m.id,x.d);
+                    const wish=raw!=='×';
+                    const cc=(p==='◯'||p==='◎')?'cmaru':p==='△'?'csankaku':'cbatsu';
                     const cf=isConf(x.d,m.id);
                     return <div key={m.id} className="mini-row">
                       <span className={"mnm "+cc}>{m.name}</span>
                       <span className={"mpf "+cc+(wish?' wishfill':'')}>{p}</span>
-                      <span className={"mav"+(wish?' wishfill':'')}>{p!=='×'&&av?av:'·'}</span>
+                      <span className={"mav"+(raw!=='×'?' wishfill':'')}>{raw!=='×'&&av?av:'·'}</span>
                       <span className={"mak"+(inn?(cf?' lockfill':' workfill'):'')} onClick={e=>{e.stopPropagation();toggleAssign(x.d,m.id);}} style={{color:inn?(cf?'#3b6fb0':'var(--accent)'):'var(--line)'}}>{inn?'◯':'・'}</span>
                       <span className={"mwt"+(inn?(cf?' lockfill':' workfill'):'')}>{inn?<TimePicker value={s.times[`${m.id}-${x.d}`]||''} initialValue={av} onChange={v=>setTime(m.id,x.d,v)}/>:<span className="dim">·</span>}</span>
                     </div>;
@@ -1283,7 +1347,7 @@ function App(){
           <div className="scroll-x">
           <table className="sum-table">
             <thead><tr>
-              <th>メンバー</th><th>連勤禁止</th><th>最大</th>
+              <th>メンバー</th><th>エラー</th><th>連勤禁止</th><th>最大</th>
               <th>希望(平日)</th><th>希望(金土日祝)</th><th>希望合計</th>
               <th>採用(平日)</th><th>採用(金土日祝)</th><th>採用合計</th>
             </tr></thead>
@@ -1294,8 +1358,10 @@ function App(){
                 const aw=adoptedCount(m.id,'weekday'),ae=adoptedCount(m.id,'weekend');
                 const viol=consecViolation(m.id);
                 const mviol=(m.maxDays>0)&&((aw+ae)>m.maxDays);
+                const missingSpecial=days.filter(x=>isSpecial(m.id,x.d)&&!isIn(x.d,m.id)).map(x=>x.d);
                 return <tr key={m.id}>
-                  <td><b>{m.name}</b>{viol&&<div className="warn">⚠ 連勤違反あり</div>}{mviol&&<div className="warn">⚠ 上限超過</div>}</td>
+                  <td><b>{m.name}</b></td>
+                  <td className="error-cell">{missingSpecial.length>0&&<div className="warn">⚠ ◎未採用：{missingSpecial.join('日、')}日</div>}{viol&&<div className="warn">⚠ 連勤違反あり</div>}{mviol&&<div className="warn">⚠ 最大勤務日数超過</div>}</td>
                   <td className="n">{m.noConsec?m.noConsec+'連勤禁止':'—'}</td>
                   <td className="n">{m.maxDays?m.maxDays+'日':'—'}</td>
                   <td className="n">{rw.wish.toFixed(1)}<div style={{fontSize:10,color:'var(--muted)'}}>◯{rw.mar} △{rw.san}</div></td>
@@ -1309,7 +1375,7 @@ function App(){
             </tbody>
           </table>
           </div>
-          <div className="hint">希望合計は ◯=1.0・△=0.5 で計算。採用は今のカレンダーの状態を反映します。</div>
+          <div className="hint">希望合計は ◯・◎=1.0、△=0.5 で計算。エラーは確認用の警告で、自動作成や共有を止めません。採用は今のカレンダーの状態を反映します。</div>
         </div>
       )}
 
