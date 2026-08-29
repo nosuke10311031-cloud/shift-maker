@@ -194,6 +194,8 @@ body{padding:10px 2px 50px}
     try{
       var raw=(str||'').trim();
       try{raw=decodeURIComponent(raw);}catch(e){}
+      // 新しいLINE向けURLは「-」を「_」で運ぶ。LZStringの共有コードでは「_」は未使用なので旧コードとも両立する。
+      raw=raw.replace(/_/g,'-');
       var j=LZString.decompressFromEncodedURIComponent(raw);
       if(!j)return null;
       var c=JSON.parse(j);

@@ -1052,7 +1052,12 @@ function App(){
     setShareCode(LZString.compressToEncodedURIComponent(JSON.stringify(C)));
   };
   const copyText=(t)=>{if(navigator.clipboard&&t)navigator.clipboard.writeText(t);};
-  const shareLink=()=>{const u=(viewerUrl||'').trim();if(!u||!shareCode)return '';return u+(u.indexOf('#')>=0?'':'#')+encodeURIComponent(shareCode);};
+  const shareLink=()=>{
+    const u=(viewerUrl||'').trim();if(!u||!shareCode)return '';
+    // LINEが圧縮コード内の「-」で自動リンクを切るため、URL内だけ未使用文字「_」へ置換する。
+    const lineSafeCode=shareCode.replace(/-/g,'_');
+    return u+(u.indexOf('#')>=0?'':'#')+encodeURIComponent(lineSafeCode);
+  };
   const rawShareLink=()=>{const u=(viewerUrl||'').trim();if(!u||!shareCode)return '';return u+(u.indexOf('#')>=0?'':'#')+shareCode;};
   useEffect(()=>{
     setQrReady(false);
