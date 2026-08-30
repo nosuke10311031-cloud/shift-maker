@@ -41,8 +41,8 @@ h1 .dot{width:12px;height:12px;border-radius:50%;background:#d8602e;box-shadow:0
 .vdw{font-size:8px;color:#8a8378;margin-left:1px}
 .vcnt{margin-left:auto;font-family:'Zen Kaku Gothic New',sans-serif;font-size:8px;color:#8a8378;font-weight:400}
 .vname{height:16px;font-weight:700;font-size:9px;line-height:1.2;padding:1px 2px;display:flex;align-items:center;white-space:nowrap;border-bottom:1px solid #000;overflow:hidden}
-.vname.cmaru,.vname.csankaku,.vname.cbatsu{color:#2f9e6f;font-weight:700}
-.vline{height:16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));font-size:9.2px;line-height:1.15;text-align:center;border-bottom:1px solid #000}
+.vname.cmaru,.vname.csankaku,.vname.cbatsu{color:#000;font-weight:700}
+.vline{height:16px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,2fr);font-size:9.2px;line-height:1.15;text-align:center;border-bottom:1px solid #000}
 .vline>span{min-width:0;padding:1px;display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden;border-right:1px solid #000}
 .vline>span:last-child{border-right:0}
 .vmp{color:#000;background:#ece9e2;font-weight:700}
@@ -64,8 +64,23 @@ body{padding:10px 2px 50px}
 .vhead,.vnamehead{height:22px}
 .vhead{font-size:8px;padding:2px 1px}.vdw,.vcnt{font-size:6px}
 .vname{height:15px;font-size:7px;padding:1px}
-.vline{height:15px;font-size:6.8px;grid-template-columns:1.05fr 1.05fr .9fr}
+.vline{height:15px;font-size:6.8px;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,2fr)}
 .vline>span{padding:1px 0}
+}
+@page{size:A4 landscape;margin:8mm}
+@media print{
+html,body{background:#fff}
+body{padding:0;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.wrap{width:100%;max-width:none;margin:0}
+h1,.bar,.card,.legend2,.foot{display:none!important}
+.vweeks{display:block;width:100%;gap:0}
+.vweek{grid-template-columns:34mm repeat(7,minmax(0,1fr));width:100%;margin:0;break-inside:avoid;page-break-inside:avoid;break-after:page;page-break-after:always}
+.vweek:last-child{break-after:auto;page-break-after:auto}
+.vhead,.vnamehead{height:8mm}
+.vhead{font-size:10pt;padding:1mm}.vdw,.vcnt{font-size:7pt}
+.vname{height:5.8mm;font-size:8pt!important;padding:.3mm .7mm;color:#000!important}
+.vline{height:5.8mm;font-size:8pt;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,2fr)}
+.vline>span{padding:.3mm}
 }
 </style>
 </head>
@@ -226,7 +241,7 @@ body{padding:10px 2px 50px}
     h+='<label class="fcheck all"><input type="checkbox" id="f-all"'+(allChecked?' checked':'')+'>全員</label>';
     for(var i=0;i<D.members.length;i++){var m=D.members[i];var on=!allChecked&&selectedIds.indexOf(m.id)>=0;h+='<label class="fcheck"><input type="checkbox" class="f-person" data-id="'+m.id+'"'+(on?' checked':'')+'>'+esc(m.name)+'</label>';}
     h+='</div></div>';
-    h+='<button class="pbtn" id="fit">🔍 全体表示</button> <button class="pbtn" id="photo">写真を保存</button><span class="photo-msg" id="photo-msg"></span></div>';
+    h+='<button class="pbtn" id="fit">🔍 全体表示</button> <button class="pbtn" id="photo">写真を保存</button> <button class="pbtn" id="print">🖨 週ごとに印刷</button><span class="photo-msg" id="photo-msg"></span></div>';
     if(!allChecked&&rows.length){
       h+='<div class="card"><div class="count-list">';
       for(var ci=0;ci<rows.length;ci++){var cm=rows[ci],cnt=0;for(var d0=1;d0<=dim;d0++){if(isIn(cm.id,d0))cnt++;}h+='<span class="count-item">'+esc(cm.name)+'：<b>'+cnt+'</b>日</span>';}
@@ -286,6 +301,7 @@ body{padding:10px 2px 50px}
     });
     document.getElementById('fit').onclick=toggleFit;
     document.getElementById('photo').onclick=saveCalendarImage;
+    document.getElementById('print').onclick=function(){window.print();};
     fitNames();
   }
 
