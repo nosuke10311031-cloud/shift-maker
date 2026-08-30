@@ -54,8 +54,8 @@ h1 .dot{width:12px;height:12px;border-radius:50%;background:#d8602e;box-shadow:0
 .paste textarea{font-family:monospace;font-size:12px;width:100%;min-height:96px;border:1px solid #e3ddd0;border-radius:10px;padding:10px;background:#fffdf8;color:#2b2724;resize:vertical}
 .btn{font-family:inherit;font-weight:700;font-size:14px;padding:10px 18px;border:none;border-radius:10px;background:#d8602e;color:#fff;cursor:pointer;align-self:flex-start}
 .err{background:#fbe4e4;color:#a33;padding:10px 14px;border-radius:10px;font-size:13px}
-.photo-msg{display:inline-block;margin-left:8px;font-size:12px;color:#8a8378}
-.photo-msg a{color:#d8602e;font-weight:700}
+.photo-msg{display:inline-block;flex:1 1 100%;font-size:12px;color:#8a8378}
+.photo-msg a{display:inline-block;margin:3px 4px 3px 0;padding:5px 8px;border:1px solid #e3ddd0;border-radius:8px;background:#fffdf8;color:#d8602e;font-weight:700;text-decoration:none}
 @media(max-width:600px){
 body{padding:10px 2px 50px}
 .card{padding:10px 3px}
@@ -100,6 +100,7 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
   var D=null;           // 表示中のシフトデータ（展開後）
   var selectedIds=null; // null=全員、配列=選択中のメンバーID
   var lastPhotoUrl=null;
+  var weeklyPhotoUrls=[];
 
   function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function isWE(dow){return dow===5||dow===6||dow===0;}
@@ -241,7 +242,7 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
     h+='<label class="fcheck all"><input type="checkbox" id="f-all"'+(allChecked?' checked':'')+'>全員</label>';
     for(var i=0;i<D.members.length;i++){var m=D.members[i];var on=!allChecked&&selectedIds.indexOf(m.id)>=0;h+='<label class="fcheck"><input type="checkbox" class="f-person" data-id="'+m.id+'"'+(on?' checked':'')+'>'+esc(m.name)+'</label>';}
     h+='</div></div>';
-    h+='<button class="pbtn" id="fit">🔍 全体表示</button> <button class="pbtn" id="photo">写真を保存</button> <button class="pbtn" id="print">🖨 週ごとに印刷</button><span class="photo-msg" id="photo-msg"></span></div>';
+    h+='<button class="pbtn" id="fit">🔍 全体表示</button> <button class="pbtn" id="photo">写真を保存</button> <button class="pbtn" id="week-photo">📷 週ごとに写真保存</button><span class="photo-msg" id="photo-msg"></span></div>';
     if(!allChecked&&rows.length){
       h+='<div class="card"><div class="count-list">';
       for(var ci=0;ci<rows.length;ci++){var cm=rows[ci],cnt=0;for(var d0=1;d0<=dim;d0++){if(isIn(cm.id,d0))cnt++;}h+='<span class="count-item">'+esc(cm.name)+'：<b>'+cnt+'</b>日</span>';}
@@ -300,8 +301,8 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
       };
     });
     document.getElementById('fit').onclick=toggleFit;
-    document.getElementById('photo').onclick=saveCalendarImage;
-    document.getElementById('print').onclick=function(){window.print();};
+    document.getElementById('photo').onclick=function(){saveCalendarImage();};
+    document.getElementById('week-photo').onclick=saveWeeklyImages;
     fitNames();
   }
 
@@ -321,10 +322,11 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
     w.style.transformOrigin='top center';w.style.transform='scale('+sc+')';
   }
 
-  function saveCalendarImage(){
-    var target=document.querySelector('.vweeks');
-    var btn=document.getElementById('photo');
-    var msg=document.getElementById('photo-msg');
+  function saveCalendarImage(target,options){
+    options=options||{};
+    target=target||document.querySelector('.vweeks');
+    var btn=Object.prototype.hasOwnProperty.call(options,'button')?options.button:document.getElementById('photo');
+    var msg=options.message===false?null:document.getElementById('photo-msg');
     if(!target)return;
     var old=btn?btn.textContent:'';
     if(btn){btn.disabled=true;btn.textContent='保存中...';}
@@ -396,6 +398,11 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
 
       function finish(png){
         if(!png){throw new Error('png');}
+        if(options.onReady){
+          options.onReady(png,null);
+          if(btn){btn.disabled=false;btn.textContent=old;}
+          return;
+        }
         if(lastPhotoUrl)URL.revokeObjectURL(lastPhotoUrl);
         var purl=URL.createObjectURL(png);
         lastPhotoUrl=purl;
@@ -413,11 +420,17 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
       }
       if(canvas.toBlob){
         canvas.toBlob(function(png){
-          try{finish(png);}catch(e){if(btn){btn.disabled=false;btn.textContent=old;}alert('写真を作成できませんでした。ブラウザを変えてもう一度試してください。');}
+          try{finish(png);}catch(e){if(btn){btn.disabled=false;btn.textContent=old;}if(options.onError)options.onError();else alert('写真を作成できませんでした。ブラウザを変えてもう一度試してください。');}
         },'image/png');
       }else{
+        var dataUrl=canvas.toDataURL('image/png');
+        if(options.onReady){
+          options.onReady(null,dataUrl);
+          if(btn){btn.disabled=false;btn.textContent=old;}
+          return;
+        }
         var a2=document.createElement('a');
-        a2.href=canvas.toDataURL('image/png');
+        a2.href=dataUrl;
         a2.download='shift-'+D.year+'-'+('0'+D.month).slice(-2)+'.png';
         document.body.appendChild(a2);
         a2.click();
@@ -426,8 +439,51 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
       }
     }catch(e){
       if(btn){btn.disabled=false;btn.textContent=old;}
-      alert('写真を作成できませんでした。ブラウザを変えてもう一度試してください。');
+      if(options.onError)options.onError();else alert('写真を作成できませんでした。ブラウザを変えてもう一度試してください。');
     }
+  }
+
+  function saveWeeklyImages(){
+    var weeks=[].slice.call(document.querySelectorAll('.vweek'));
+    var btn=document.getElementById('week-photo');
+    var msg=document.getElementById('photo-msg');
+    if(!weeks.length||!btn||!msg)return;
+    var old=btn.textContent;
+    btn.disabled=true;
+    btn.textContent='作成中...';
+    msg.textContent='週ごとの写真を作成しています...';
+    weeklyPhotoUrls.forEach(function(url){URL.revokeObjectURL(url);});
+    weeklyPhotoUrls=[];
+    var links=[];
+    var failed=false;
+    function fail(){
+      if(failed)return;
+      failed=true;
+      btn.disabled=false;
+      btn.textContent=old;
+      msg.textContent='写真を作成できませんでした。ブラウザを変えてもう一度試してください。';
+    }
+    function next(i){
+      if(failed)return;
+      if(i>=weeks.length){
+        btn.disabled=false;
+        btn.textContent=old;
+        msg.innerHTML='保存する週をタップ：'+links.join('')+'<br><small>iPhoneで画像が開いた場合は、画像を長押しして保存してください。</small>';
+        return;
+      }
+      saveCalendarImage(weeks[i],{
+        button:null,message:false,
+        onReady:function(png,dataUrl){
+          var url=dataUrl||URL.createObjectURL(png);
+          if(!dataUrl)weeklyPhotoUrls.push(url);
+          var fileName='shift-'+D.year+'-'+('0'+D.month).slice(-2)+'-week-'+(i+1)+'.png';
+          links.push('<a href="'+url+'" download="'+fileName+'" target="_blank" rel="noopener">'+(i+1)+'週目を保存</a>');
+          next(i+1);
+        },
+        onError:fail
+      });
+    }
+    next(0);
   }
 
   function renderPaste(msg){
