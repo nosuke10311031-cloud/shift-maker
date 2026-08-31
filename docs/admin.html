@@ -1052,13 +1052,26 @@ function App(){
     setShareCode(LZString.compressToEncodedURIComponent(JSON.stringify(C)));
   };
   const copyText=(t)=>{if(navigator.clipboard&&t)navigator.clipboard.writeText(t);};
-  const shareLink=()=>{
-    const u=(viewerUrl||'').trim();if(!u||!shareCode)return '';
-    // LINEが圧縮コード内の「-」で自動リンクを切るため、URL内だけ未使用文字「_」へ置換する。
-    const lineSafeCode=shareCode.replace(/-/g,'_');
-    return u+(u.indexOf('#')>=0?'':'#')+encodeURIComponent(lineSafeCode);
+  const buildViewerLink=(code)=>{
+    const u=(viewerUrl||'').trim();if(!u||!code)return '';
+    try{
+      const url=new URL(u,window.location.href);
+      url.hash='';
+      url.searchParams.set('shift',code);
+      return url.toString();
+    }catch(e){
+      const clean=u.split('#')[0];
+      return clean+(clean.indexOf('?')>=0?'&':'?')+'shift='+encodeURIComponent(code);
+    }
   };
-  const rawShareLink=()=>{const u=(viewerUrl||'').trim();if(!u||!shareCode)return '';return u+(u.indexOf('#')>=0?'':'#')+shareCode;};
+  const shareLink=()=>{
+    if(!shareCode)return '';
+    // LINEが「#」以降をリンクに含めない場合があるため、共有コードはクエリに入れる。
+    // 圧縮コード内の「-」も、URL内だけ未使用文字「_」へ置換して旧端末の途中切れを避ける。
+    const lineSafeCode=shareCode.replace(/-/g,'_');
+    return buildViewerLink(lineSafeCode);
+  };
+  const rawShareLink=()=>buildViewerLink(shareCode);
   useEffect(()=>{
     setQrReady(false);
     setQrMsg('');

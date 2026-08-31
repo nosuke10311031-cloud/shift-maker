@@ -496,22 +496,45 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
       var v=(document.getElementById('code').value||'').trim();
       if(!v)return;
       var dd=decodeShare(v);
-      if(dd){D=dd;selectedIds=null;try{location.hash=v;}catch(e){}renderShift();window.scrollTo(0,0);}
+      if(dd){
+        D=dd;selectedIds=null;
+        try{
+          var url=new URL(location.href);
+          url.hash='';
+          url.searchParams.set('shift',v.replace(/-/g,'_'));
+          history.replaceState(null,'',url.toString());
+        }catch(e){try{location.hash=v;}catch(ee){}}
+        renderShift();window.scrollTo(0,0);
+      }
       else renderPaste('コードを読み取れませんでした。コピーし直して、もう一度貼り付けてください。');
     };
   }
 
+  function codeFromLocation(){
+    var query='';
+    try{query=(new URLSearchParams(location.search)).get('shift')||'';}catch(e){}
+    if(query)return query;
+    return (location.hash||'').replace(/^#/,'');
+  }
+
+  function loadLocationCode(){
+    var code=codeFromLocation();
+    var dd=code?decodeShare(code):null;
+    if(dd){D=dd;selectedIds=null;renderShift();return true;}
+    D=null;selectedIds=null;
+    renderPaste(code?'リンクのデータを読み取れませんでした。下に共有コードを貼って読み込んでください。':'');
+    return false;
+  }
+
   function init(){
-    var hash=(location.hash||'').replace(/^#/,'');
-    if(hash)D=decodeShare(hash);
+    var code=codeFromLocation();
+    if(code)D=decodeShare(code);
     if(D)renderShift();
-    else renderPaste(hash?'リンクのデータを読み取れませんでした。下に共有コードを貼って読み込んでください。':'');
+    else renderPaste(code?'リンクのデータを読み取れませんでした。下に共有コードを貼って読み込んでください。':'');
     window.addEventListener('hashchange',function(){
-      var hh=(location.hash||'').replace(/^#/,'');
-      if(!hh)return;
-      var dd=decodeShare(hh);
-      if(dd){D=dd;selectedIds=null;renderShift();}
+      loadLocationCode();
     });
+    window.addEventListener('popstate',function(){loadLocationCode();});
   }
 
   init();
