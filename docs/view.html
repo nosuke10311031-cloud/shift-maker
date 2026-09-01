@@ -336,6 +336,9 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
       var pad=10;
       var width=Math.ceil(target.scrollWidth||base.width);
       var height=Math.ceil(target.scrollHeight||base.height);
+      var nameCol=options.bindingMargin?target.querySelector('.vnamecol'):null;
+      var bindingMargin=nameCol?nameCol.getBoundingClientRect().width*.5:0;
+      var contentScaleX=bindingMargin>0?(width-bindingMargin)/width:1;
       var scale=Math.max(2,window.devicePixelRatio||1);
       var canvas=document.createElement('canvas');
       canvas.width=Math.ceil((width+pad*2)*scale);
@@ -344,10 +347,14 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
       ctx.scale(scale,scale);
       ctx.fillStyle='#f4f1ea';
       ctx.fillRect(0,0,width+pad*2,height+pad*2);
+      if(bindingMargin>0){
+        ctx.fillStyle='#fff';
+        ctx.fillRect(0,0,pad+bindingMargin,height+pad*2);
+      }
 
       function rectOf(el){
         var r=el.getBoundingClientRect();
-        return {x:r.left-base.left+pad,y:r.top-base.top+pad,w:r.width,h:r.height};
+        return {x:(r.left-base.left)*contentScaleX+pad+bindingMargin,y:r.top-base.top+pad,w:r.width*contentScaleX,h:r.height};
       }
       function bgOf(el, fallback){
         var c=getComputedStyle(el).backgroundColor;
@@ -472,7 +479,7 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
         return;
       }
       saveCalendarImage(weeks[i],{
-        button:null,message:false,
+        button:null,message:false,bindingMargin:true,
         onReady:function(png,dataUrl){
           var url=dataUrl||URL.createObjectURL(png);
           if(!dataUrl)weeklyPhotoUrls.push(url);
