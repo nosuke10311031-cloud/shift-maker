@@ -56,6 +56,11 @@ h1 .dot{width:12px;height:12px;border-radius:50%;background:#d8602e;box-shadow:0
 .err{background:#fbe4e4;color:#a33;padding:10px 14px;border-radius:10px;font-size:13px}
 .photo-msg{display:inline-block;flex:1 1 100%;font-size:12px;color:#8a8378}
 .photo-msg a{display:inline-block;margin:3px 4px 3px 0;padding:5px 8px;border:1px solid #e3ddd0;border-radius:8px;background:#fffdf8;color:#d8602e;font-weight:700;text-decoration:none}
+.view-tabs{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:10px 0;padding:6px;border:1px solid #e3ddd0;border-radius:11px;background:rgba(244,241,234,.96);backdrop-filter:blur(8px)}
+.view-tab{font-family:inherit;font-weight:700;padding:8px;border:1px solid #e3ddd0;border-radius:8px;background:#fffdf8;color:#2b2724;cursor:pointer}
+.view-tab.on.all{background:#2b2724;color:#fff}.view-tab.on.midori{background:#2f8f62;color:#fff}.view-tab.on.riki{background:#b84b4b;color:#fff}.view-tab:disabled{opacity:.38;cursor:default}
+.cache-note{font-size:11px;color:#8a8378;margin:-4px 0 8px}.cache-clear{border:0;background:transparent;color:#a33;text-decoration:underline;font:inherit;cursor:pointer;margin-left:8px}
+.vmw.midori-work{background:#d9efe4}.vmw.riki-work{background:#f2dada}.store-mini{display:inline-block;border-radius:3px;padding:0 2px;margin-right:1px;color:#fff;font-size:.8em}.store-mini.midori{background:#2f8f62}.store-mini.riki{background:#b84b4b}
 @media(max-width:600px){
 body{padding:10px 2px 50px}
 .card{padding:10px 3px}
@@ -102,6 +107,10 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
   var selectedIds=null; // null=全員、配列=選択中のメンバーID
   var lastPhotoUrl=null;
   var weeklyPhotoUrls=[];
+  var STORE_CACHE=null;
+  var ACTIVE_TAB='all';
+  var VIEW_CACHE_KEY='shiftmaker_view_v4';
+  var VIEW_LAST_KEY='shiftmaker_view_v4_last';
 
   function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function isWE(dow){return dow===5||dow===6||dow===0;}
@@ -129,7 +138,7 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
     }
   }
   function unpackShare(c){
-    if(c.z===3){
+    if(c.z===4||c.z===3){
       var dim3=new Date(c.y,c.m,0).getDate();
       var assignments3={},times3={},prefs3={},avail3={},dailyDemand3={};
       for(var d3=1;d3<=dim3;d3++){
@@ -161,7 +170,8 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
         year:c.y,month:c.m,
         members:(c.n||[]).map(function(name,i){return {id:i,name:name};}),
         assignments:assignments3,times:times3,prefs:prefs3,avail:avail3,
-        dw:0,de:0,ov:{},dailyDemand:dailyDemand3,holidays:c.h||[]
+        dw:0,de:0,ov:{},dailyDemand:dailyDemand3,holidays:c.h||[],
+        storeId:c.z===4?c.s:'midori',groupId:c.z===4?c.g:'',revision:c.z===4?(c.r||0):0,generatedAt:c.z===4?(c.u||0):0,isV4:c.z===4
       };
     }
     if(c.z===2){
@@ -221,6 +231,36 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
     }catch(e){return null;}
   }
 
+  function cacheId(data){return data.groupId+'|'+data.year+'-'+String(data.month).padStart(2,'0');}
+  function readAllCache(){try{return JSON.parse(localStorage.getItem(VIEW_CACHE_KEY)||'{}');}catch(e){return {};}}
+  function writeAllCache(all){try{localStorage.setItem(VIEW_CACHE_KEY,JSON.stringify(all));}catch(e){}}
+  function acceptStoreData(data){
+    if(!data||!data.isV4||!data.groupId)return null;
+    var all=readAllCache(),key=cacheId(data),entry=all[key]||{groupId:data.groupId,year:data.year,month:data.month,stores:{}};
+    var old=entry.stores[data.storeId];
+    if(!old||(data.revision||0)>=(old.revision||0))entry.stores[data.storeId]=data;
+    all[key]=entry;writeAllCache(all);try{localStorage.setItem(VIEW_LAST_KEY,key);}catch(e){}
+    return entry;
+  }
+  function lastCache(){try{var key=localStorage.getItem(VIEW_LAST_KEY)||'',all=readAllCache();return all[key]||null;}catch(e){return null;}}
+  function combinedData(entry){
+    var sources=['midori','riki'].map(function(id){return entry.stores[id];}).filter(Boolean),names=[],byName={};
+    sources.forEach(function(src){src.members.forEach(function(m){if(byName[m.name]==null){byName[m.name]=names.length;names.push(m.name);}});});
+    var out={year:entry.year,month:entry.month,members:names.map(function(name,i){return {id:i,name:name};}),assignments:{},times:{},prefs:{},avail:{},dailyDemand:{},holidays:[],storeOf:{},storeId:'all',groupId:entry.groupId,isV4:true};
+    sources.forEach(function(src){
+      (src.holidays||[]).forEach(function(d){if(out.holidays.indexOf(d)<0)out.holidays.push(d);});
+      Object.keys(src.dailyDemand||{}).forEach(function(d){out.dailyDemand[d]=(out.dailyDemand[d]||0)+(src.dailyDemand[d]||0);});
+      src.members.forEach(function(m){var ni=byName[m.name];out.prefs[ni]=out.prefs[ni]||src.prefs[m.id]||{};out.avail[ni]=out.avail[ni]||src.avail[m.id]||{};});
+      Object.keys(src.assignments||{}).forEach(function(d){(src.assignments[d]||[]).forEach(function(oldId){var om=src.members[oldId];if(!om)return;var ni=byName[om.name];out.assignments[d]=out.assignments[d]||[];if(out.assignments[d].indexOf(ni)<0)out.assignments[d].push(ni);var t=src.times[oldId+'-'+d];if(t)out.times[ni+'-'+d]=t;out.storeOf[ni+'-'+d]=src.storeId;});});
+    });
+    return out;
+  }
+  function selectCachedTab(tab){
+    if(!STORE_CACHE)return;
+    if(tab!=='all'&&!STORE_CACHE.stores[tab])return;
+    ACTIVE_TAB=tab;selectedIds=null;D=tab==='all'?combinedData(STORE_CACHE):STORE_CACHE.stores[tab];renderShift();window.scrollTo(0,0);
+  }
+
   function nameOf(id){var m=D.members[id];return m?m.name:'';}
   function timeOf(id,d){return D.times[id+'-'+d]||'';}
   function prefOf(id,d){return (D.prefs[id]&&D.prefs[id][d])||'×';}
@@ -238,7 +278,12 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
     var rows=selectedMembers();
     var allChecked=selectedIds===null;
     var h='';
-    h+='<h1><span class="dot"></span>'+D.year+'年 '+D.month+'月 シフト</h1>';
+    var titleStore=D.storeId==='midori'?'・みどり':D.storeId==='riki'?'・リキ':'';
+    h+='<h1><span class="dot"></span>'+D.year+'年 '+D.month+'月 シフト'+titleStore+'</h1>';
+    if(STORE_CACHE){
+      h+='<div class="view-tabs"><button class="view-tab all'+(ACTIVE_TAB==='all'?' on':'')+'" data-tab="all">全体</button><button class="view-tab midori'+(ACTIVE_TAB==='midori'?' on':'')+'" data-tab="midori"'+(!STORE_CACHE.stores.midori?' disabled':'')+'>みどり</button><button class="view-tab riki'+(ACTIVE_TAB==='riki'?' on':'')+'" data-tab="riki"'+(!STORE_CACHE.stores.riki?' disabled':'')+'>リキ</button></div>';
+      h+='<div class="cache-note">同じ年月・同じ管理データの店舗シフトを、この端末内で統合しています。'+(!STORE_CACHE.stores.midori?' みどり未読込。':'')+(!STORE_CACHE.stores.riki?' リキ未読込。':'')+'<button class="cache-clear" id="cache-clear">保存データを削除</button></div>';
+    }
     h+='<div class="bar"><div class="filterbox"><div class="filter-title">表示する人</div><div class="filter-list">';
     h+='<label class="fcheck all"><input type="checkbox" id="f-all"'+(allChecked?' checked':'')+'>全員</label>';
     for(var i=0;i<D.members.length;i++){var m=D.members[i];var on=!allChecked&&selectedIds.indexOf(m.id)>=0;h+='<label class="fcheck"><input type="checkbox" class="f-person" data-id="'+m.id+'"'+(on?' checked':'')+'>'+esc(m.name)+'</label>';}
@@ -276,10 +321,11 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
         for(var r=0;r<rows.length;r++){
           var id=rows[r].id;var p=prefOf(id,d);var inn=isIn(id,d);var av=availOf(id,d);var tm=timeOf(id,d);
           var wishCell=(p!=='×'&&av)?av:p;
-          var workCell=inn?(tm||''):'';
+          var storeId=(D.storeOf&&D.storeOf[id+'-'+d])||(D.isV4&&D.storeId!=='all'?D.storeId:''),storePrefix=D.storeId==='all'?(storeId==='midori'?'み ':storeId==='riki'?'リ ':''):'';
+          var workCell=inn?(storePrefix+(tm||'')):'';
           h+='<div class="vline">';
           h+='<span class="vmp '+pcls(p)+'">'+wishCell+'</span>';
-          h+='<span class="vmw'+(inn?' vwork':'')+'">'+workCell+'</span>';
+          h+='<span class="vmw'+(inn?' vwork':'')+(storeId?' '+storeId+'-work':'')+'">'+workCell+'</span>';
           h+='<span class="vblankbox"></span>';
           h+='</div>';
         }
@@ -289,6 +335,10 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
     }
     h+='</div>';
     document.getElementById('app').innerHTML=h;
+    if(STORE_CACHE){
+      [].forEach.call(document.querySelectorAll('.view-tab'),function(btn){btn.onclick=function(){selectCachedTab(this.getAttribute('data-tab'));};});
+      var clearBtn=document.getElementById('cache-clear');if(clearBtn)clearBtn.onclick=function(){if(confirm('この端末に保存した店舗シフトを削除しますか？')){try{var all=readAllCache();delete all[STORE_CACHE.groupId+'|'+STORE_CACHE.year+'-'+String(STORE_CACHE.month).padStart(2,'0')];writeAllCache(all);localStorage.removeItem(VIEW_LAST_KEY);}catch(e){}STORE_CACHE=null;D=null;renderPaste('保存した店舗データを削除しました。');}};
+    }
     var allBox=document.getElementById('f-all');
     allBox.onchange=function(){selectedIds=null;renderShift();};
     [].forEach.call(document.querySelectorAll('.f-person'),function(box){
@@ -505,7 +555,8 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
       if(!v)return;
       var dd=decodeShare(v);
       if(dd){
-        D=dd;selectedIds=null;
+        if(dd.isV4){STORE_CACHE=acceptStoreData(dd);ACTIVE_TAB=dd.storeId;D=STORE_CACHE.stores[ACTIVE_TAB];}else{STORE_CACHE=null;D=dd;}
+        selectedIds=null;
         try{
           var url=new URL(location.href);
           url.hash='';
@@ -528,7 +579,7 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
   function loadLocationCode(){
     var code=codeFromLocation();
     var dd=code?decodeShare(code):null;
-    if(dd){D=dd;selectedIds=null;renderShift();return true;}
+    if(dd){if(dd.isV4){STORE_CACHE=acceptStoreData(dd);ACTIVE_TAB=dd.storeId;D=STORE_CACHE.stores[ACTIVE_TAB];}else{STORE_CACHE=null;D=dd;}selectedIds=null;renderShift();return true;}
     D=null;selectedIds=null;
     renderPaste(code?'リンクのデータを読み取れませんでした。下に共有コードを貼って読み込んでください。':'');
     return false;
@@ -537,8 +588,9 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
   function init(){
     var code=codeFromLocation();
     if(code)D=decodeShare(code);
-    if(D)renderShift();
-    else renderPaste(code?'リンクのデータを読み取れませんでした。下に共有コードを貼って読み込んでください。':'');
+    if(D&&D.isV4){STORE_CACHE=acceptStoreData(D);ACTIVE_TAB=D.storeId;D=STORE_CACHE.stores[ACTIVE_TAB];}
+    else if(!D){STORE_CACHE=lastCache();if(STORE_CACHE){ACTIVE_TAB='all';D=combinedData(STORE_CACHE);}}
+    if(D)renderShift();else renderPaste(code?'リンクのデータを読み取れませんでした。下に共有コードを貼って読み込んでください。':'');
     window.addEventListener('hashchange',function(){
       loadLocationCode();
     });

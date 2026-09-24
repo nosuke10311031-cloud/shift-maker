@@ -37,6 +37,7 @@
   input[type=number]{width:72px}
   .btn{font-family:inherit;font-weight:700;font-size:14px;padding:9px 16px;border:none;border-radius:10px;background:var(--ink);color:var(--paper);cursor:pointer;transition:transform .08s,opacity .15s}
   .btn:hover{opacity:.9}.btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.38;cursor:not-allowed;transform:none}
   .btn.accent{background:var(--accent)}
   .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
   .btn.sm{padding:5px 10px;font-size:12px}
@@ -238,6 +239,23 @@
   .imp-msg{margin-top:10px;padding:10px 14px;border-radius:10px;font-size:13px}
   .imp-ok{background:var(--maru-bg);color:#1f6e4e}
   .imp-ng{background:#fbe4e4;color:#a33}
+  .store-tabs{position:sticky;top:0;z-index:35;display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:7px;background:rgba(244,241,234,.96);border:1px solid var(--line);border-radius:12px;margin:0 0 14px;backdrop-filter:blur(8px)}
+  .store-tab{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--paper);font-family:inherit;font-weight:700;cursor:pointer;color:var(--ink)}
+  .store-tab.active.all{background:#2b2724;color:#fff}.store-tab.active.midori{background:#2f8f62;color:#fff}.store-tab.active.riki{background:#b84b4b;color:#fff}
+  .store-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:16px;padding:0 4px;border-radius:4px;color:#fff;font-size:8px;font-weight:700;margin-left:2px}
+  .store-badge.midori{background:#2f8f62}.store-badge.riki{background:#b84b4b}
+  .target-off{opacity:.34}.other-store{background:#eee9df!important;color:#746d63!important}
+  .special-work{outline:2px solid #d5a51e;outline-offset:-2px;box-shadow:inset 0 0 0 1px #fff2a8}
+  .midori-assign{background:#d9efe4!important}.riki-assign{background:#f2dada!important}
+  .target-panel{position:fixed;z-index:1001;inset:8vh max(12px,calc((100vw - 520px)/2));max-height:84vh;background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 70px rgba(43,39,36,.32);padding:18px;display:flex;flex-direction:column}
+  .target-list{overflow:auto;margin:10px 0;border-top:1px solid var(--line)}
+  .target-item{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line);font-size:14px}
+  .target-item input{width:18px;height:18px}.target-item .reason{margin-left:auto;font-size:10px;color:var(--muted)}
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px}
+  .plan-empty{font-size:11px;color:var(--muted);padding:8px 2px}
+  .all-row{display:flex;align-items:center;gap:5px;font-size:9px;padding:2px;border-top:1px solid #eee7da;min-height:15px}
+  .all-row .aname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.all-row .atime{font-variant-numeric:tabular-nums}
+  .share-store{border-left:4px solid var(--line);padding-left:12px;margin-top:14px}.share-store.midori{border-color:#2f8f62}.share-store.riki{border-color:#b84b4b}
   .big-prefcell{cursor:pointer;font-weight:700;font-size:18px;user-select:none;border-radius:8px;display:flex;align-items:center;justify-content:center;height:46px}
   ::-webkit-scrollbar{height:10px;width:10px}::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px}
   @media(max-width:900px){
@@ -268,7 +286,26 @@
 <div id="root"></div>
 <script type="text/babel">
 const {useState,useEffect,useMemo,useRef,useLayoutEffect} = React;
-const store={load(){try{const r=localStorage.getItem('shiftmaker_v3');return r?JSON.parse(r):null}catch(e){return null}},save(s){try{localStorage.setItem('shiftmaker_v3',JSON.stringify(s))}catch(e){}}};
+const STORE_PREFIX='shiftmaker_v4_';
+const STORE_META='shiftmaker_v4_meta';
+const monthKey=(y,m)=>`${y}-${String(m).padStart(2,'0')}`;
+const clone=(v)=>JSON.parse(JSON.stringify(v));
+const store={
+  load(y,m){try{const r=localStorage.getItem(STORE_PREFIX+monthKey(y,m));return r?JSON.parse(r):null}catch(e){return null}},
+  meta(){try{const r=localStorage.getItem(STORE_META);return r?JSON.parse(r):{shareGroupId:uid()+uid(),active:''}}catch(e){return {shareGroupId:uid()+uid(),active:''}}},
+  saveMeta(meta){try{localStorage.setItem(STORE_META,JSON.stringify(meta));}catch(e){}},
+  months(){try{return Object.keys(localStorage).filter(k=>k.startsWith(STORE_PREFIX)&&k!==STORE_META).map(k=>k.slice(STORE_PREFIX.length)).sort();}catch(e){return []}},
+  save(s){
+    const key=STORE_PREFIX+monthKey(s.year,s.month),raw=JSON.stringify(s);
+    try{localStorage.setItem(key,raw);return {ok:true,removed:[]};}catch(e){}
+    const removed=[];
+    for(const mk of this.months()){
+      if(mk===monthKey(s.year,s.month))continue;
+      try{localStorage.removeItem(STORE_PREFIX+mk);removed.push(mk);localStorage.setItem(key,raw);return {ok:true,removed};}catch(e){}
+    }
+    return {ok:false,removed};
+  }
+};
 const WD=['日','月','火','水','木','金','土'];
 const isWeekend=(dow)=>dow===5||dow===6||dow===0;            // 金土日
 const uid=()=>Math.random().toString(36).slice(2,9);
@@ -418,7 +455,8 @@ function buildTargets(state){
   const holidays=japaneseHolidays(year);
   const days=[];
   for(let d=1;d<=dim;d++){const dow=new Date(year,month-1,d).getDay();const holiday=holidays[dateKey(year,month,d)]||'';days.push({d,dow,holiday,we:isWeekend(dow)||!!holiday});}
-  const getPref=(mid,d)=>(prefs[mid]&&prefs[mid][d])||'×';
+  const otherPlaced=state.otherPlaced||{};
+  const getPref=(mid,d)=>otherPlaced[d]&&otherPlaced[d][mid]?'×':((prefs[mid]&&prefs[mid][d])||'×');
   const getDemand=(d)=>workPlanTotal(workPlanForDay(state,days[d-1]));
   const half=(d)=>d<=Math.ceil(dim/2)?'A':'B';
 
@@ -456,7 +494,9 @@ function autoFill(state, targets){
   const {members,placed,confM,confD}=state;
   targets=targets||buildTargets(state);
   const {dim,days,getPref,getDemand,half,poolTarget,totalTarget,halfTarget}=targets;
+  const otherPlaced=state.otherPlaced||{};
   const isPlaced=(mid,d)=>!!(placed[d]&&placed[d][mid]);
+  const isOtherPlaced=(mid,d)=>!!(otherPlaced[d]&&otherPlaced[d][mid]);
   const isConfM=(mid)=>!!(confM&&confM[mid]);
   const isConfD=(dd)=>!!(confD&&confD[dd]);
 
@@ -464,7 +504,7 @@ function autoFill(state, targets){
   const result={};days.forEach(x=>result[x.d]=members.filter(m=>isPlaced(m.id,x.d)).map(m=>m.id));
 
   // 連勤禁止（絶対）
-  const servedOn=(mid,d)=>(result[d]||[]).includes(mid);
+  const servedOn=(mid,d)=>(result[d]||[]).includes(mid)||isOtherPlaced(mid,d);
   const wouldExceed=(mid,d,N)=>{if(!N||N<1)return false;let len=1,p=d-1,q=d+1;while(p>=1&&servedOn(mid,p)){len++;p--;}while(q<=dim&&servedOn(mid,q)){len++;q++;}return len>=N;};
   const noConsec=(mid)=>{const m=members.find(x=>x.id===mid);return m&&m.noConsec?m.noConsec:0;};
   // 最大勤務日数（絶対・連勤と同格）。0＝制限なし。
@@ -488,7 +528,8 @@ function autoFill(state, targets){
     const need=getDemand(x.d,x.we);const pool=x.we?'weekend':'weekday';const h=half(x.d);
     const pick=result[x.d];
     const addFrom=(pref)=>{
-      const cands=members.filter(m=>getPref(m.id,x.d)===pref&&!isConfM(m.id)&&!pick.includes(m.id)&&!wouldExceed(m.id,x.d,noConsec(m.id))&&!(maxDaysOf(m.id)>0&&(apool.weekday[m.id]+apool.weekend[m.id])>=maxDaysOf(m.id)));
+      const combinedCount=(mid)=>days.reduce((n,day)=>n+(((result[day.d]||[]).includes(mid)||isOtherPlaced(mid,day.d))?1:0),0);
+      const cands=members.filter(m=>getPref(m.id,x.d)===pref&&!isOtherPlaced(m.id,x.d)&&!isConfM(m.id)&&!pick.includes(m.id)&&!wouldExceed(m.id,x.d,noConsec(m.id))&&!(maxDaysOf(m.id)>0&&combinedCount(m.id)>=maxDaysOf(m.id)));
       cands.sort((a,b)=>
         (ratioOf(apool[pool][a.id],poolTarget[pool][a.id])-ratioOf(apool[pool][b.id],poolTarget[pool][b.id]))
         ||(ratioOf(ahalf[h][a.id],halfTarget[h][a.id])-ratioOf(ahalf[h][b.id],halfTarget[h][b.id]))
@@ -564,7 +605,7 @@ const normalizeWorkPlans=(raw)=>{
   PLAN_TYPES.forEach(type=>{
     const hasRows=!!(raw&&Object.prototype.hasOwnProperty.call(raw,type)&&Array.isArray(raw[type]));
     const rows=hasRows?raw[type]:defaults[type];
-    const valid=rows.map(row=>({time:String(row.time||''),count:Math.max(1,parseInt(row.count)||1)}))
+    const valid=rows.map(row=>({time:String(row.time||''),count:Math.max(0,parseInt(row.count)||0)}))
       .filter(row=>/^\d{2}:\d{2}$/.test(row.time))
       .sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));
     out[type]=hasRows?valid:defaults[type];
@@ -574,11 +615,11 @@ const normalizeWorkPlans=(raw)=>{
 const validateWorkPlans=(plans)=>{
   for(const type of PLAN_TYPES){
     const rows=plans&&plans[type];
-    if(!Array.isArray(rows)||!rows.length)return `${PLAN_LABELS[type]}の募集時間がありません。1つ以上設定してください。`;
+    if(!Array.isArray(rows))return `${PLAN_LABELS[type]}の募集設定を読み取れません。`;
     const seen=new Set();
     for(const row of rows){
       if(timeToMinutes(row.time)<15*60)return `${PLAN_LABELS[type]}の時刻は15:00以降にしてください。`;
-      if(!Number.isInteger(Number(row.count))||Number(row.count)<1)return `${PLAN_LABELS[type]}の人数は1名以上にしてください。`;
+      if(!Number.isInteger(Number(row.count))||Number(row.count)<0)return `${PLAN_LABELS[type]}の人数は0名以上にしてください。`;
       if(seen.has(row.time))return `${PLAN_LABELS[type]}の${row.time}は重複しています。`;
       seen.add(row.time);
     }
@@ -597,7 +638,7 @@ const planTypeForDay=(x)=>{
   if(x.dow===6)return 'saturday';
   return 'weekday';
 };
-const workPlanForDay=(state,x)=>(state.workPlans&&state.workPlans[planTypeForDay(x)])||DEFAULT_WORK_PLANS[planTypeForDay(x)];
+const workPlanForDay=(state,x)=>(state.workPlans&&state.workPlans[planTypeForDay(x)])||[];
 const workPlanTotal=(rows)=>(rows||[]).reduce((sum,row)=>sum+(parseInt(row.count)||0),0);
 const formatWorkPlan=(rows)=>(rows||[]).map(row=>`${row.time}−${row.count}名`).join(' ／ ');
 const workSlotsForDay=(state,x)=>{
@@ -655,7 +696,10 @@ function assignWorkTimes(state, mode){
 
     let planned=[...remainingAfterEmployees];
     if(regulars.length<planned.length)planned=planned.slice(0,regulars.length);
-    while(planned.length<regulars.length)planned.push(fullSlots[fullSlots.length-1]);
+    while(fullSlots.length&&planned.length<regulars.length)planned.push(fullSlots[fullSlots.length-1]);
+    if(!fullSlots.length){
+      regulars.forEach(m=>{const key=`${m.id}-${x.d}`;if(currentTimes[key])employeeTimes[key]=currentTimes[key];});
+    }
 
     const pool=fairnessPool(x);
     regulars.forEach(m=>{
@@ -1446,6 +1490,289 @@ function App(){
     </div>
   );
 }
+const STORE_IDS=['midori','riki'];
+const STORE_LABEL={midori:'みどり',riki:'リキ'};
+const otherStore=(id)=>id==='midori'?'riki':'midori';
+const emptyPlans=()=>Object.fromEntries(PLAN_TYPES.map(type=>[type,[]]));
+const blankStoreV4=(targets,plans)=>({
+  targets:{...(targets||{})},placed:{},times:{},timeSlots:{},confM:{},confD:{},
+  workPlans:normalizeWorkPlans(plans||emptyPlans()),planRevision:0,staffPlanRevision:0,timePlanRevision:0
+});
+function normalizePeriodV4(raw){
+  if(raw&&raw.v===4&&raw.stores){
+    const stores={};
+    STORE_IDS.forEach(id=>{
+      const x=raw.stores[id]||blankStoreV4();
+      stores[id]={...blankStoreV4(x.targets,x.workPlans),...x,targets:x.targets||{},placed:x.placed||{},times:x.times||{},timeSlots:x.timeSlots||{},confM:x.confM||{},confD:x.confD||{},workPlans:normalizeWorkPlans(x.workPlans||emptyPlans())};
+    });
+    return {...raw,stores,prefs:raw.prefs||{},availFrom:raw.availFrom||{},specialPrefs:raw.specialPrefs||{},dataRevision:{midori:0,riki:0,...(raw.dataRevision||{})},sharedRevision:{midori:-1,riki:-1,...(raw.sharedRevision||{})}};
+  }
+  const now=new Date(),base=raw||{};
+  const members=base.members||[],midoriTargets={};members.forEach(m=>midoriTargets[m.id]=true);
+  const specials={};Object.keys(base.specialPrefs||{}).forEach(mid=>{
+    const row={};Object.keys(base.specialPrefs[mid]||{}).forEach(d=>{if(base.specialPrefs[mid][d])row[d]='midori';});specials[mid]=row;
+  });
+  return {
+    v:4,year:base.year||now.getFullYear(),month:base.month||now.getMonth()+1,members,
+    prefs:base.prefs||{},availFrom:base.availFrom||{},specialPrefs:specials,
+    stores:{
+      midori:{...blankStoreV4(midoriTargets,base.workPlans||cloneDefaultPlans()),placed:base.placed||{},times:base.times||{},timeSlots:base.timeSlots||{},confM:base.confM||{},confD:base.confD||{},planRevision:base.planRevision||0,staffPlanRevision:base.staffPlanRevision||0,timePlanRevision:base.timePlanRevision||0},
+      riki:blankStoreV4({},emptyPlans())
+    },
+    dataRevision:{midori:1,riki:0},sharedRevision:{midori:-1,riki:-1}
+  };
+}
+function initialPeriodV4(){
+  const meta=store.meta();
+  let key=meta.active;
+  if(!key){const keys=store.months();key=keys.length?keys[keys.length-1]:'';}
+  if(key){const p=key.split('-').map(Number),saved=store.load(p[0],p[1]);if(saved)return {period:normalizePeriodV4(saved),meta:{...meta,active:key}};}
+  let legacy=null;try{const r=localStorage.getItem('shiftmaker_v3');legacy=r?JSON.parse(r):null;}catch(e){}
+  const period=normalizePeriodV4(legacy);
+  return {period,meta:{...meta,active:monthKey(period.year,period.month)}};
+}
+function newPeriodFromV4(source,y,m){
+  const members=clone(source.members||[]),stores={};
+  STORE_IDS.forEach(id=>{stores[id]=blankStoreV4(source.stores[id].targets,source.stores[id].workPlans);});
+  return {v:4,year:y,month:m,members,prefs:{},availFrom:{},specialPrefs:{},stores,dataRevision:{midori:0,riki:0},sharedRevision:{midori:-1,riki:-1}};
+}
+
+function AppV4(){
+  const initial=useMemo(()=>initialPeriodV4(),[]);
+  const [s,setS]=useState(initial.period);
+  const [meta,setMeta]=useState(initial.meta);
+  const [activeTab,setActiveTab]=useState('midori');
+  const [filter,setFilter]=useState('all');
+  const [newName,setNewName]=useState('');
+  const [importText,setImportText]=useState('');
+  const [importMsg,setImportMsg]=useState(null);
+  const [pendingImport,setPendingImport]=useState(null);
+  const [targetOpen,setTargetOpen]=useState(false);
+  const [clearDialog,setClearDialog]=useState(null);
+  const [confOpen,setConfOpen]=useState(false);
+  const [dayPop,setDayPop]=useState(null);
+  const [memPop,setMemPop]=useState(null);
+  const [planMsg,setPlanMsg]=useState(null);
+  const [timeMsg,setTimeMsg]=useState(null);
+  const [storageMsg,setStorageMsg]=useState('');
+  const [shareOut,setShareOut]=useState({midori:null,riki:null});
+  const [viewerUrl,setViewerUrl]=useState(()=>{try{return localStorage.getItem('shiftmaker_viewer_url')||DEFAULT_VIEWER_URL;}catch(e){return DEFAULT_VIEWER_URL;}});
+  const qrMidori=useRef(null),qrRiki=useRef(null);
+  const dim=daysInMonth(s.year,s.month);
+  const days=useMemo(()=>{const a=[],holidays=japaneseHolidays(s.year);for(let d=1;d<=daysInMonth(s.year,s.month);d++){const dow=new Date(s.year,s.month-1,d).getDay(),holiday=holidays[dateKey(s.year,s.month,d)]||'';a.push({d,dow,holiday,we:isWeekend(dow)||!!holiday});}return a;},[s.year,s.month]);
+  const first=new Date(s.year,s.month-1,1).getDay(),calendarCells=[...Array(first).fill(null),...days];while(calendarCells.length%7)calendarCells.push(null);
+
+  useEffect(()=>{
+    const result=store.save(s);
+    const nextMeta={...meta,active:monthKey(s.year,s.month)};store.saveMeta(nextMeta);
+    if(result.removed.length)setStorageMsg(`保存容量を確保するため、古い月（${result.removed.join('、')}）を削除しました。`);
+    else if(!result.ok)setStorageMsg('保存容量が不足し、この月を保存できませんでした。');
+  },[s]);
+  useEffect(()=>{try{localStorage.setItem('shiftmaker_viewer_url',viewerUrl);}catch(e){}},[viewerUrl]);
+  useEffect(()=>{
+    STORE_IDS.forEach(id=>{
+      const el=id==='midori'?qrMidori.current:qrRiki.current,out=shareOut[id];if(!el)return;el.innerHTML='';
+      if(!out||!out.link||typeof window.QRCode==='undefined')return;
+      try{new window.QRCode(el,{text:out.rawLink,width:180,height:180,colorDark:'#000',colorLight:'#fff',correctLevel:window.QRCode.CorrectLevel.L});}catch(e){}
+    });
+  },[shareOut,viewerUrl]);
+
+  const dirty=(state,ids)=>{
+    const rev={...state.dataRevision};ids.forEach(id=>rev[id]=(rev[id]||0)+1);return {...state,dataRevision:rev};
+  };
+  const updateCommon=(patch,ids=STORE_IDS)=>setS(prev=>dirty({...prev,...(typeof patch==='function'?patch(prev):patch)},ids));
+  const updateStore=(id,change,mark=true)=>setS(prev=>{
+    const current=prev.stores[id],next=typeof change==='function'?change(current,prev):{...current,...change};
+    const state={...prev,stores:{...prev.stores,[id]:next}};return mark?dirty(state,[id]):state;
+  });
+  const ss=activeTab==='all'?null:s.stores[activeTab];
+  const isIn=(id,d,mid)=>!!(s.stores[id].placed[d]&&s.stores[id].placed[d][mid]);
+  const isConf=(id,d,mid)=>!!(s.stores[id].confM[mid]||s.stores[id].confD[d]);
+  const getPref=(mid,d)=>(s.prefs[mid]&&s.prefs[mid][d])||'×';
+  const getAvail=(mid,d)=>(s.availFrom[mid]&&s.availFrom[mid][d])||'';
+  const specialStore=(mid,d)=>s.specialPrefs[mid]&&s.specialPrefs[mid][d];
+  const shownPref=(mid,d)=>specialStore(mid,d)?'◎':getPref(mid,d);
+  const prefClass=(p)=>p==='◎'?'pref-double':p==='◯'?'pref-maru':p==='△'?'pref-sankaku':'pref-batsu';
+  const targetMembers=(id)=>s.members.filter(m=>s.stores[id].targets[m.id]);
+  const demand=(id,x)=>workPlanTotal(workPlanForDay({workPlans:s.stores[id].workPlans},x));
+  const countCombined=(mid)=>days.reduce((n,x)=>n+(isIn('midori',x.d,mid)||isIn('riki',x.d,mid)?1:0),0);
+  const wouldConsec=(mid,d,ignoreStore)=>{
+    const m=s.members.find(x=>x.id===mid),limit=m&&m.noConsec;if(!limit)return false;
+    const works=(dd)=>STORE_IDS.some(id=>id!==ignoreStore&&isIn(id,dd,mid))||(ignoreStore?false:STORE_IDS.some(id=>isIn(id,dd,mid)));
+    let len=1,p=d-1,q=d+1;while(p>=1&&works(p)){len++;p--;}while(q<=dim&&works(q)){len++;q++;}return len>=limit;
+  };
+  const markShareDirty=()=>setShareOut({midori:null,riki:null});
+
+  const switchPeriod=(y,m)=>{
+    if(!Number.isInteger(y)||y<2000||y>2099||m<1||m>12)return;
+    const saved=store.load(y,m),targetKey=monthKey(y,m),previousKey=store.months().filter(k=>k<targetKey).sort().pop(),previous=previousKey?store.load(...previousKey.split('-').map(Number)):null;
+    const next=saved?normalizePeriodV4(saved):newPeriodFromV4(previous?normalizePeriodV4(previous):s,y,m);
+    setS(next);setMeta(p=>({...p,active:monthKey(y,m)}));setShareOut({midori:null,riki:null});setFilter('all');setDayPop(null);setMemPop(null);setConfOpen(false);
+  };
+  const addMember=()=>{
+    const name=newName.trim();if(!name)return;if(s.members.some(m=>m.name===name)){alert('同じ名前のメンバーは登録できません。');return;}
+    updateCommon({members:[...s.members,{id:uid(),name,noConsec:0,maxDays:0,employee:false}]});setNewName('');
+  };
+  const removeMemberData=(ids)=>{
+    const removing=new Set(ids),dropMap=(src)=>{const out={...(src||{})};ids.forEach(id=>delete out[id]);return out;};
+    const stores={};STORE_IDS.forEach(id=>{const x=s.stores[id],placed={};Object.keys(x.placed).forEach(d=>{const row={...x.placed[d]};ids.forEach(mid=>delete row[mid]);if(Object.keys(row).length)placed[d]=row;});const dropTimes=(src)=>Object.fromEntries(Object.entries(src||{}).filter(([k])=>!ids.some(mid=>k.startsWith(mid+'-'))));stores[id]={...x,targets:dropMap(x.targets),placed,times:dropTimes(x.times),timeSlots:dropTimes(x.timeSlots),confM:dropMap(x.confM),confD:s.members.length>ids.length?x.confD:{}};});
+    updateCommon({members:s.members.filter(m=>!removing.has(m.id)),prefs:dropMap(s.prefs),availFrom:dropMap(s.availFrom),specialPrefs:dropMap(s.specialPrefs),stores});
+    if(filter!=='all'&&removing.has(filter))setFilter('all');setMemPop(null);
+  };
+  const renameMember=(mid,name)=>{
+    name=name.trim();if(!name)return;if(s.members.some(m=>m.id!==mid&&m.name===name)){alert('同じ名前のメンバーは登録できません。');return;}
+    updateCommon({members:s.members.map(m=>m.id===mid?{...m,name}:m)});
+  };
+  const patchMember=(mid,patch)=>updateCommon({members:s.members.map(m=>m.id===mid?{...m,...patch}:m)});
+  const setEmployee=(mid,on)=>{
+    let stores={...s.stores};STORE_IDS.forEach(id=>{const x=stores[id],times={...x.times},timeSlots={...x.timeSlots};days.forEach(day=>{if(!isIn(id,day.d,mid))return;const key=`${mid}-${day.d}`;if(on){times[key]='13:00';delete timeSlots[key];}else if(!isConf(id,day.d,mid)&&times[key]==='13:00'){delete times[key];delete timeSlots[key];}});stores[id]={...x,times,timeSlots};});
+    updateCommon({members:s.members.map(m=>m.id===mid?{...m,employee:on}:m),stores});
+  };
+  const cyclePref=(mid,d)=>{
+    if(specialStore(mid,d)){alert('特別勤務希望日は、シフト作成欄の勤務採用を解除してから変更してください。');return;}
+    const cur=getPref(mid,d),next=cur==='×'?'◯':cur==='◯'?'△':'×';updateCommon({prefs:{...s.prefs,[mid]:{...(s.prefs[mid]||{}),[d]:next}}});
+  };
+  const fillRow=(mid,val)=>{const row={...(s.prefs[mid]||{})};days.forEach(x=>{if(!specialStore(mid,x.d))row[x.d]=val;});updateCommon({prefs:{...s.prefs,[mid]:row}});};
+  const setAvail=(mid,d,v)=>updateCommon({availFrom:{...s.availFrom,[mid]:{...(s.availFrom[mid]||{}),[d]:v}}});
+
+  const toggleTarget=(id,mid,on)=>{
+    if(!on&&days.some(x=>isIn(id,x.d,mid))){alert(`${STORE_LABEL[id]}の勤務が残っているため、対象から外せません。先に勤務を解除してください。`);return;}
+    updateStore(id,x=>({...x,targets:{...x.targets,[mid]:on}}));
+  };
+  const updatePlans=(id,plans)=>{updateStore(id,x=>({...x,workPlans:plans,planRevision:(x.planRevision||0)+1}));setPlanMsg({ok:true,text:`${STORE_LABEL[id]}の募集設定を保存しました。既存勤務は変更していません。`});setTimeMsg(null);markShareDirty();};
+  const setPlanTimeV4=(id,type,index,value)=>{
+    if(!value||timeToMinutes(value)<15*60){setPlanMsg({ok:false,text:'募集時刻は15:00以降にしてください。'});return;}
+    const plans=s.stores[id].workPlans;if(plans[type].some((r,i)=>i!==index&&r.time===value)){setPlanMsg({ok:false,text:'同じ募集時刻は登録できません。'});return;}
+    updatePlans(id,{...plans,[type]:plans[type].map((r,i)=>i===index?{...r,time:value}:r).sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time))});
+  };
+  const setPlanCountV4=(id,type,index,value)=>{const plans=s.stores[id].workPlans,count=Math.max(0,parseInt(value)||0);updatePlans(id,{...plans,[type]:plans[type].map((r,i)=>i===index?{...r,count}:r)});};
+  const addPlanV4=(id,type)=>{const plans=s.stores[id].workPlans,used=new Set(plans[type].map(r=>r.time));let value='15:00';for(let t=15*60;t<24*60;t+=15){const v=minutesToTime(t);if(!used.has(v)){value=v;break;}}updatePlans(id,{...plans,[type]:[...plans[type],{time:value,count:1}].sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time))});};
+  const removePlanV4=(id,type,index)=>{const plans=s.stores[id].workPlans;updatePlans(id,{...plans,[type]:plans[type].filter((_,i)=>i!==index)});};
+
+  const combinedWarnings=(storeId,d,mid,adding=true)=>{
+    const warnings=[],m=s.members.find(x=>x.id===mid),x=days[d-1];
+    if(getPref(mid,d)==='×')warnings.push('希望×です');
+    if(wouldConsec(mid,d,null))warnings.push('連勤制限を超えます');
+    if(m&&m.maxDays>0&&countCombined(mid)+(adding?1:0)>m.maxDays)warnings.push('最大勤務日数を超えます');
+    const now=targetMembers(storeId).filter(mm=>isIn(storeId,d,mm.id)).length;if(now+(adding?1:0)>demand(storeId,x))warnings.push('募集人数を超えます');
+    if(demand(storeId,x)===0)warnings.push('この日は募集人数0です。勤務時間は手動で入力してください');
+    return warnings;
+  };
+  const moveAssignment=(from,to,d,mid)=>{
+    if(isConf(from,d,mid)){alert('確定済み勤務は移動できません。');return;}
+    const warnings=combinedWarnings(to,d,mid,false);if(warnings.length&&!confirm(warnings.join('\n')+'\n\nそれでも店舗を移動しますか？'))return;
+    const fromS=s.stores[from],toS=s.stores[to],key=`${mid}-${d}`,fromRow={...(fromS.placed[d]||{})},toRow={...(toS.placed[d]||{})};delete fromRow[mid];toRow[mid]=true;
+    const fromTimes={...fromS.times},fromSlots={...fromS.timeSlots},toTimes={...toS.times},toSlots={...toS.timeSlots};const tm=fromTimes[key];delete fromTimes[key];delete fromSlots[key];if(tm)toTimes[key]=tm;
+    let specialPrefs=s.specialPrefs;if(specialStore(mid,d)===from)specialPrefs={...s.specialPrefs,[mid]:{...s.specialPrefs[mid],[d]:to}};
+    const stores={...s.stores,[from]:{...fromS,placed:{...fromS.placed,[d]:fromRow},times:fromTimes,timeSlots:fromSlots},[to]:{...toS,targets:{...toS.targets,[mid]:true},placed:{...toS.placed,[d]:toRow},times:toTimes,timeSlots:toSlots}};
+    setS(prev=>dirty({...prev,stores,specialPrefs},[from,to]));markShareDirty();
+  };
+  const toggleAssign=(id,d,mid)=>{
+    const other=otherStore(id),cur=s.stores[id],key=`${mid}-${d}`;
+    if(isIn(id,d,mid)){
+      if(isConf(id,d,mid)){alert('確定済み勤務は解除できません。');return;}
+      if(specialStore(mid,d)===id&&!confirm('特別勤務希望日ですが、勤務採用を解除してもよろしいですか？'))return;
+      const row={...(cur.placed[d]||{})},times={...cur.times},slots={...cur.timeSlots};delete row[mid];delete times[key];delete slots[key];updateStore(id,{...cur,placed:{...cur.placed,[d]:row},times,timeSlots:slots});markShareDirty();return;
+    }
+    if(isIn(other,d,mid)){if(confirm(`${STORE_LABEL[other]}の勤務を${STORE_LABEL[id]}へ移動しますか？`))moveAssignment(other,id,d,mid);return;}
+    if(!cur.targets[mid]&&!confirm(`${STORE_LABEL[id]}の対象メンバーに追加して配置しますか？`))return;
+    const warnings=combinedWarnings(id,d,mid,true);if(warnings.length&&!confirm(warnings.join('\n')+'\n\nそれでも配置しますか？'))return;
+    const row={...(cur.placed[d]||{}),[mid]:true},times={...cur.times},member=s.members.find(m=>m.id===mid);if(member&&member.employee)times[key]='13:00';
+    updateStore(id,{...cur,targets:{...cur.targets,[mid]:true},placed:{...cur.placed,[d]:row},times});markShareDirty();
+  };
+  const setWorkTime=(id,mid,d,v)=>{
+    if(isConf(id,d,mid)){alert('確定済み勤務の時刻は変更できません。');return;}
+    const av=getAvail(mid,d);if(v&&av&&timeToMinutes(v)<timeToMinutes(av)&&!confirm(`希望開始時刻は${av}です。それより前の${v}で登録しますか？`))return;
+    updateStore(id,x=>{const slots={...x.timeSlots};delete slots[`${mid}-${d}`];return {...x,times:{...x.times,[`${mid}-${d}`]:v},timeSlots:slots};});markShareDirty();
+  };
+  const algoState=(id,base)=>{const x=base||s.stores[id];return {...s,...x,members:targetMembers(id),workPlans:x.workPlans,otherPlaced:s.stores[otherStore(id)].placed};};
+  const addSpecialPlacements=(id,base)=>{
+    const placed=clone(base.placed),times={...base.times};Object.keys(s.specialPrefs).forEach(mid=>Object.keys(s.specialPrefs[mid]||{}).forEach(raw=>{const d=parseInt(raw);if(s.specialPrefs[mid][raw]!==id||isIn(otherStore(id),d,mid))return;placed[d]={...(placed[d]||{}),[mid]:true};const m=s.members.find(x=>x.id===mid);if(m&&m.employee)times[`${mid}-${d}`]='13:00';}));return {...base,placed,times};
+  };
+  const runFill=(id,mode)=>{
+    const x=s.stores[id];if(PLAN_TYPES.reduce((n,t)=>n+workPlanTotal(x.workPlans[t]),0)===0){setPlanMsg({ok:false,text:`${STORE_LABEL[id]}の募集人数がすべて0のため、自動作成できません。`});return;}
+    let base=x;
+    if(mode==='unconfirmed'){
+      if(!confirm('確定済み勤務を残し、未確定部分を作り直します。よろしいですか？'))return;
+      const placed={},times={},timeSlots={};days.forEach(day=>s.members.forEach(m=>{if(isIn(id,day.d,m.id)&&isConf(id,day.d,m.id)){placed[day.d]={...(placed[day.d]||{}),[m.id]:true};const key=`${m.id}-${day.d}`;if(x.times[key])times[key]=x.times[key];if(x.timeSlots[key])timeSlots[key]=x.timeSlots[key];}}));base={...x,placed,times,timeSlots};
+    }
+    base=addSpecialPlacements(id,base);const state=algoState(id,base),placed=autoFillBest(state,300);const keptTimes={},keptSlots={};days.forEach(day=>targetMembers(id).forEach(m=>{if(!(placed[day.d]&&placed[day.d][m.id]))return;const key=`${m.id}-${day.d}`;if(m.employee)keptTimes[key]='13:00';else if(base.times[key])keptTimes[key]=base.times[key];if(base.timeSlots[key])keptSlots[key]=base.timeSlots[key];}));
+    updateStore(id,{...base,placed,times:keptTimes,timeSlots:keptSlots,staffPlanRevision:x.planRevision||0});markShareDirty();
+  };
+  const runTimes=(id,mode)=>{
+    const x=s.stores[id];if(mode==='unconfirmed'&&!confirm('確定済みの勤務時間と社員の13:00を残し、未確定時間を割り当て直します。よろしいですか？'))return;
+    const result=assignWorkTimes(algoState(id),mode);if(result.error){setTimeMsg({ok:false,text:result.error});return;}updateStore(id,{...x,times:result.times,timeSlots:result.timeSlots,timePlanRevision:x.planRevision||0});setTimeMsg({ok:true,text:'勤務時間を割り当てました。'});markShareDirty();
+  };
+  const openClear=(id,mode)=>{
+    const affected=[];Object.keys(s.specialPrefs).forEach(mid=>Object.keys(s.specialPrefs[mid]||{}).forEach(raw=>{const d=parseInt(raw);if(specialStore(mid,d)===id&&isIn(id,d,mid)&&(mode==='all'||!isConf(id,d,mid)))affected.push({mid,d});}));
+    if(affected.length)setClearDialog({id,mode,count:affected.length});else applyClear(id,mode,false);
+  };
+  const applyClear=(id,mode,keepSpecial)=>{
+    const x=s.stores[id],placed={},times={},timeSlots={};
+    days.forEach(day=>s.members.forEach(m=>{const keepConfirmed=mode==='unconfirmed'&&isIn(id,day.d,m.id)&&isConf(id,day.d,m.id),keepSp=keepSpecial&&isIn(id,day.d,m.id)&&specialStore(m.id,day.d)===id;if(!keepConfirmed&&!keepSp)return;placed[day.d]={...(placed[day.d]||{}),[m.id]:true};const key=`${m.id}-${day.d}`;if(x.times[key])times[key]=x.times[key];if(x.timeSlots[key])timeSlots[key]=x.timeSlots[key];}));
+    updateStore(id,{...x,placed,times,timeSlots,confM:mode==='all'?{}:x.confM,confD:mode==='all'?{}:x.confD});setClearDialog(null);markShareDirty();
+  };
+  const toggleConfM=(id,mid)=>updateStore(id,x=>{const map={...x.confM};if(map[mid])delete map[mid];else map[mid]=true;return {...x,confM:map};});
+  const setConfD=(id,d,on)=>updateStore(id,x=>{const map={...x.confD};if(on)map[d]=true;else delete map[d];return {...x,confD:map};});
+
+  const parseImport=()=>{
+    const obj=decodeSubmission(importText);if(!obj||obj.t!=='shift-pref'){setImportMsg({ok:false,text:'コードを読み取れませんでした。'});return;}
+    if(parseInt(obj.y)!==s.year||parseInt(obj.m)!==s.month){setImportMsg({ok:false,text:`このコードは${obj.y}年${obj.m}月分です。表示中の年月と一致しません。`});return;}
+    const name=String(obj.name||'').trim();if(!name){setImportMsg({ok:false,text:'名前がありません。'});return;}
+    const prefs=obj.p&&typeof obj.p==='object'?{...obj.p}:{},must=Array.isArray(obj.must)?obj.must.map(Number):[];Object.keys(prefs).forEach(d=>{if(prefs[d]==='◎'){prefs[d]='◯';must.push(parseInt(d));}});
+    const invalidMust=must.some(d=>!Number.isInteger(d)||d<1||d>dim),mustDays=[...new Set(must)].filter(d=>Number.isInteger(d)&&d>=1&&d<=dim),badPref=Object.keys(prefs).some(d=>!['◯','△','×'].includes(prefs[d]));
+    if(invalidMust||badPref||mustDays.some(d=>prefs[d]!=='◯')){setImportMsg({ok:false,text:'特別勤務希望日の内容が正しくありません。'});return;}
+    const existing=s.members.find(m=>m.name===name),defaultStore=existing&&s.stores.riki.targets[existing.id]&&!s.stores.midori.targets[existing.id]?'riki':'midori';
+    const prepared={...obj,name,prefs,mustDays,choices:Object.fromEntries(mustDays.map(d=>[d,defaultStore]))};if(mustDays.length)setPendingImport(prepared);else commitImport(prepared,{});
+  };
+  const commitImport=(obj,choices)=>{
+    let members=s.members,member=members.find(m=>m.name===obj.name),added=!member,mid=member?member.id:uid();
+    if(member)members=members.map(m=>m.id===mid?{...m,noConsec:Math.max(0,parseInt(obj.nc)||0),maxDays:Math.max(0,parseInt(obj.md)||0),employee:!!obj.e}:m);else members=[...members,{id:mid,name:obj.name,noConsec:Math.max(0,parseInt(obj.nc)||0),maxDays:Math.max(0,parseInt(obj.md)||0),employee:!!obj.e}];
+    const warnings=[];
+    for(const d of obj.mustDays){const id=choices[d];if(!STORE_IDS.includes(id)){alert('特別勤務希望日の店舗を選択してください。');return;}const other=otherStore(id);if(isIn(other,d,mid)&&isConf(other,d,mid)){alert(`${d}日は${STORE_LABEL[other]}で確定済みのため取り込めません。`);return;}if(isIn(other,d,mid))warnings.push(`${d}日：${STORE_LABEL[other]}から${STORE_LABEL[id]}へ移動します`);const def=demand(id,days[d-1]),current=s.members.filter(m=>isIn(id,d,m.id)).length;if(def===0)warnings.push(`${d}日：${STORE_LABEL[id]}は募集人数0です`);else if(!isIn(id,d,mid)&&current>=def)warnings.push(`${d}日：${STORE_LABEL[id]}の募集人数を超えます`);}
+    const prospective=new Set(days.filter(day=>STORE_IDS.some(id=>isIn(id,day.d,mid))).map(day=>day.d));obj.mustDays.forEach(d=>prospective.add(d));const maxDays=Math.max(0,parseInt(obj.md)||0),noConsec=Math.max(0,parseInt(obj.nc)||0);if(maxDays&&prospective.size>maxDays)warnings.push(`最大勤務日数${maxDays}日を超えます`);if(noConsec){let run=0,bad=false;for(let d=1;d<=dim;d++){run=prospective.has(d)?run+1:0;if(run>=noConsec)bad=true;}if(bad)warnings.push(`${noConsec}連勤禁止に抵触します`);}if(warnings.length&&!confirm(warnings.join('\n')+'\n\nそれでも特別勤務を取り込みますか？'))return;
+    let stores=clone(s.stores);Object.keys((s.specialPrefs[mid]||{})).forEach(raw=>{const d=parseInt(raw),old=specialStore(mid,d);if(!old)return;const row={...(stores[old].placed[d]||{})};if(!isConf(old,d,mid))delete row[mid];delete stores[old].times[`${mid}-${d}`];delete stores[old].timeSlots[`${mid}-${d}`];stores[old].placed[d]=row;});
+    const specialRow={};obj.mustDays.forEach(d=>{const id=choices[d],other=otherStore(id),otherRow={...(stores[other].placed[d]||{})};delete otherRow[mid];stores[other].placed[d]=otherRow;stores[id].targets[mid]=true;stores[id].placed[d]={...(stores[id].placed[d]||{}),[mid]:true};if(obj.e)stores[id].times[`${mid}-${d}`]='13:00';specialRow[d]=id;});
+    STORE_IDS.forEach(id=>{if(obj.e)days.forEach(day=>{if(stores[id].placed[day.d]&&stores[id].placed[day.d][mid])stores[id].times[`${mid}-${day.d}`]='13:00';});});
+    setS(prev=>dirty({...prev,members,prefs:{...prev.prefs,[mid]:obj.prefs},availFrom:{...prev.availFrom,[mid]:{...(obj.a||{})}},specialPrefs:{...prev.specialPrefs,[mid]:specialRow},stores},STORE_IDS));
+    setImportMsg({ok:true,text:`${obj.name}さんの希望を${added?'追加':'上書き'}しました。`});setImportText('');setPendingImport(null);markShareDirty();
+  };
+
+  const buildLink=(code)=>{try{const url=new URL(viewerUrl,location.href);url.hash='';url.searchParams.set('shift',code.replace(/-/g,'_'));return url.toString();}catch(e){return '';}};
+  const buildShareV4=(id)=>{
+    const x=s.stores[id],members=targetMembers(id);if(!members.length){alert(`${STORE_LABEL[id]}の対象メンバーがいません。`);return;}if(members.length>PACK_CHARS.length){alert('共有は64人まで対応しています。');return;}
+    const invalid=days.some(day=>s.members.some(m=>isIn(id,day.d,m.id)&&!x.targets[m.id]));if(invalid){alert('対象外メンバーの勤務が残っています。対象設定を修正してください。');return;}
+    const idx={};members.forEach((m,i)=>idx[m.id]=i);const C={z:4,g:meta.shareGroupId,s:id,r:s.dataRevision[id]||0,u:Date.now(),y:s.year,m:s.month,n:members.map(m=>m.name),a:[],t:[],p:[],v:[],d:'',h:days.filter(x=>x.holiday).map(x=>x.d)};
+    C.d=days.map(day=>packSmall(demand(id,day))).join('');days.forEach(day=>{C.a[day.d-1]=members.filter(m=>isIn(id,day.d,m.id)).map(m=>packSmall(idx[m.id])).join('');});members.forEach((m,i)=>{C.p[i]=days.map(day=>packSharePref(getPref(m.id,day.d))).join('').replace(/0+$/,'');const av=[],wt=[];days.forEach(day=>{const a=getAvail(m.id,day.d),t=x.times[`${m.id}-${day.d}`];if(a)av.push(packShareDayTime(day.d,a));if(isIn(id,day.d,m.id)&&t)wt.push(packShareDayTime(day.d,t));});if(av.length)C.v[i]=av.join('');if(wt.length)C.t[i]=wt.join('');});
+    const code=LZString.compressToEncodedURIComponent(JSON.stringify(C)),rawLink=(()=>{try{const url=new URL(viewerUrl,location.href);url.hash='';url.searchParams.set('shift',code);return url.toString();}catch(e){return '';}})(),link=buildLink(code);setShareOut(prev=>({...prev,[id]:{code,link,rawLink}}));setS(prev=>({...prev,sharedRevision:{...prev.sharedRevision,[id]:prev.dataRevision[id]||0}}));
+  };
+  const copyText=(text)=>{if(navigator.clipboard&&text)navigator.clipboard.writeText(text);};
+  const saveQr=(id)=>{const box=id==='midori'?qrMidori.current:qrRiki.current,src=box&&(box.querySelector('canvas')||box.querySelector('img'));if(!src)return;const a=document.createElement('a');a.href=src.tagName==='CANVAS'?src.toDataURL('image/png'):src.src;a.download=`shift-${id}-${s.year}-${String(s.month).padStart(2,'0')}-qr.png`;a.click();};
+
+  const renderPlans=(id)=>{const x=s.stores[id];return <div><h3 style={{fontSize:15,marginBottom:6}}>{STORE_LABEL[id]}の募集時刻・人数</h3><div className="plan-grid">{PLAN_TYPES.map(type=><section className="plan-block" key={type}><div className="plan-head"><div className="plan-title">{PLAN_LABELS[type]}</div><div className="plan-total">合計 {workPlanTotal(x.workPlans[type])}名</div></div>{!x.workPlans[type].length&&<div className="plan-empty">募集枠なし</div>}{x.workPlans[type].map((row,index)=><div className="plan-row" key={row.time+'-'+index}><TimePicker value={row.time} minHour={15} allowClear={false} onChange={v=>setPlanTimeV4(id,type,index,v)}/><input className="plan-count" type="number" min="0" value={row.count} onChange={e=>setPlanCountV4(id,type,index,e.target.value)}/><button className="plan-del" onClick={()=>removePlanV4(id,type,index)}>×</button></div>)}<button className="plan-add" onClick={()=>addPlanV4(id,type)}>＋ 時間を追加</button></section>)}</div>{planMsg&&<div className={'imp-msg '+(planMsg.ok?'imp-ok':'imp-ng')}>{planMsg.text}</div>}</div>;};
+  const renderAllCalendar=()=> <div className="cal">{WD.map((w,i)=><div key={w} className={'cal-head'+(i===0||i>=5?' we':'')}>{w}</div>)}{calendarCells.map((x,i)=>!x?<div className="cal-cell blank" key={'b'+i}/>:<div className={'cal-cell'+(x.we?' we':'')} key={x.d}><div className="cal-date"><span>{x.d}<small style={{marginLeft:2}}>{WD[x.dow]}</small></span><span className="cap">{STORE_IDS.reduce((n,id)=>n+s.members.filter(m=>isIn(id,x.d,m.id)).length,0)}名</span></div>{s.members.map(m=>STORE_IDS.map(id=>isIn(id,x.d,m.id)?<div className="all-row" key={m.id+id}><span className={'store-badge '+id}>{id==='midori'?'み':'リ'}</span><span className="aname">{m.name}</span><span className="atime">{s.stores[id].times[`${m.id}-${x.d}`]||''}</span></div>:null))}</div>)}</div>;
+  const renderStoreCalendar=(id)=>{const x=s.stores[id],other=otherStore(id);return <div className="cal">{WD.map((w,i)=><div key={w} className={'cal-head'+(i===0||i>=5?' we':'')}>{w}</div>)}{calendarCells.map((day,i)=>{if(!day)return <div className="cal-cell blank" key={'b'+i}/>;const rows=filter==='all'?s.members:s.members.filter(m=>m.id===filter),inCount=s.members.filter(m=>isIn(id,day.d,m.id)).length,def=demand(id,day);return <div className={'cal-cell'+(day.we?' we':'')} key={day.d}><div className={'cal-date'+(inCount<def?' short':'')}><span><span className="dnum" onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setDayPop({id,d:day.d,top:r.bottom+5,left:Math.max(8,r.left)});}}>{day.d}</span><small>{WD[day.dow]}</small>{x.confD[day.d]?' 🔒':''}</span><span className="cap">{inCount}/{def}</span></div>{rows.map(m=>{const inn=isIn(id,day.d,m.id),otherIn=isIn(other,day.d,m.id),cf=isConf(id,day.d,m.id),p=shownPref(m.id,day.d),av=getAvail(m.id,day.d),special=inn&&specialStore(m.id,day.d)===id,assignClass=inn&&!cf?' '+id+'-assign':'';return <div className={'mini-row'+(!x.targets[m.id]?' target-off':'')+(otherIn?' other-store':'')+(special?' special-work':'')} key={m.id}><span className="mnm">{m.name}{otherIn&&<b className={'store-badge '+other}>{other==='midori'?'み':'リ'}</b>}</span><span className={'mpf '+prefClass(p)}>{p}</span><span className="mav">{av||'·'}</span><span className={'mak'+(inn?(cf?' lockfill':' workfill'):'')+assignClass} onClick={()=>toggleAssign(id,day.d,m.id)}>{inn?'◯':otherIn?'→':'・'}</span><span className={'mwt'+(inn?(cf?' lockfill':' workfill'):'')+assignClass}>{inn?<TimePicker value={x.times[`${m.id}-${day.d}`]||''} initialValue={av} disabled={cf} onChange={v=>setWorkTime(id,m.id,day.d,v)}/>:<span className="dim">{otherIn?s.stores[other].times[`${m.id}-${day.d}`]||STORE_LABEL[other]:'·'}</span>}</span></div>;})}</div>;})}</div>;};
+
+  return <div className="wrap">
+    <header><h1><span className="dot"></span>シフトメーカー</h1><div className="sub">2店舗対応・この端末に自動保存</div></header>
+    {storageMsg&&<div className="imp-msg imp-ng">{storageMsg}</div>}
+    <div className="card"><h2><span className="num">1</span>対象年月</h2><div className="row"><label className="fl">年<input type="number" value={s.year} onChange={e=>switchPeriod(parseInt(e.target.value)||s.year,s.month)}/></label><label className="fl">月<select value={s.month} onChange={e=>switchPeriod(s.year,parseInt(e.target.value))}>{Array.from({length:12},(_,i)=>i+1).map(m=><option key={m} value={m}>{m}月</option>)}</select></label></div><div className="hint">新しい月は、スタッフ・店舗対象・募集設定だけを引き継ぎ、希望とシフトは空で作成します。</div></div>
+    <div className="card"><h2><span className="num">＋</span>提出コードを取り込む</h2><div className="row"><input value={importText} onChange={e=>setImportText(e.target.value)} placeholder="提出コードを貼り付け" style={{flex:'1 1 320px'}}/><button className="btn accent" onClick={parseImport}>取り込む</button></div>{importMsg&&<div className={'imp-msg '+(importMsg.ok?'imp-ok':'imp-ng')}>{importMsg.text}</div>}</div>
+    <div className="card"><h2><span className="num">2</span>メンバー</h2><div className="row" style={{gap:8}}>{s.members.map(m=><span className="member-tag" key={m.id}><span className="nm">{m.name}</span>{m.employee&&<span className="emp">社員</span>}<button className="rename" onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setMemPop({mid:m.id,top:r.bottom+5,left:Math.max(8,r.left)});}}>名前編集</button><span className="consec"><input type="number" min="0" value={m.noConsec||''} placeholder="—" onChange={e=>patchMember(m.id,{noConsec:Math.max(0,parseInt(e.target.value)||0)})}/>連勤禁止</span><span className="consec"><input type="number" min="0" value={m.maxDays||''} placeholder="—" onChange={e=>patchMember(m.id,{maxDays:Math.max(0,parseInt(e.target.value)||0)})}/>最大勤務</span><button className="del" onClick={()=>{if(confirm(`${m.name}さんをこの月から削除しますか？`))removeMemberData([m.id]);}}>×</button></span>)}<input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addMember();}} placeholder="名前を入力" style={{width:120}}/><button className="btn sm accent" onClick={addMember}>＋ 追加</button><button className="btn sm ghost" disabled={!s.members.length} onClick={()=>{if(confirm(`${s.members.length}名のメンバーと関連データを、この月から一括削除しますか？`))removeMemberData(s.members.map(m=>m.id));}}>メンバーを一括削除</button></div></div>
+    <div className="card"><h2><span className="num">3</span>希望入力</h2><div className="legend"><span><b className="pref-maru">◯</b> 可能</span><span><b className="pref-double">◎</b> 特別勤務希望日</span><span><b className="pref-sankaku">△</b> 他にいなければ可</span><span><b className="pref-batsu">×</b> 不可</span></div><div className="grid-scroll"><table><thead><tr><th className="namecol">メンバー</th>{days.map(x=><th key={x.d} className={'dayhead'+(x.we?' we':'')}>{x.d}<small>{WD[x.dow]}</small></th>)}</tr></thead><tbody>{s.members.map(m=><tr key={m.id}><td className="namecol">{m.name}<div><button className="btn sm ghost" onClick={()=>fillRow(m.id,'◯')}>全◯</button> <button className="btn sm ghost" onClick={()=>fillRow(m.id,'×')}>全×</button></div></td>{days.map(x=>{const p=shownPref(m.id,x.d);return <td key={x.d} className={'pref-cell '+prefClass(p)}><div className="pcell-mark" onClick={()=>cyclePref(m.id,x.d)}>{p}</div>{p!=='×'&&<div className="pcell-time"><TimePicker value={getAvail(m.id,x.d)} onChange={v=>setAvail(m.id,x.d,v)} suffix="〜"/></div>}</td>;})}</tr>)}</tbody></table></div></div>
+    <div className="card shift-card"><div className="shift-title-row"><h2><span className="num">4</span>シフト作成</h2></div><div className="store-tabs"><button className={'store-tab all'+(activeTab==='all'?' active':'')} onClick={()=>setActiveTab('all')}>全体</button><button className={'store-tab midori'+(activeTab==='midori'?' active':'')} onClick={()=>setActiveTab('midori')}>みどり</button><button className={'store-tab riki'+(activeTab==='riki'?' active':'')} onClick={()=>setActiveTab('riki')}>リキ</button></div>
+      {activeTab==='all'?<><div className="hint" style={{marginBottom:8}}>全体タブは閲覧専用です。編集は各店舗タブで行います。</div>{renderAllCalendar()}</>:<>{renderPlans(activeTab)}<div className="toolbar" style={{marginTop:16}}><div className="fill-stack"><button className="btn accent" disabled={PLAN_TYPES.reduce((n,t)=>n+workPlanTotal(ss.workPlans[t]),0)===0} onClick={()=>runFill(activeTab,'remaining')}>残りを自動で作成 ▶</button><button className="btn accent sm" disabled={PLAN_TYPES.reduce((n,t)=>n+workPlanTotal(ss.workPlans[t]),0)===0} onClick={()=>runFill(activeTab,'unconfirmed')}>確定以外を自動作成</button></div><div className="clear-stack"><button className="btn ghost sm" onClick={()=>openClear(activeTab,'all')}>全部クリア</button><button className="btn ghost sm" onClick={()=>openClear(activeTab,'unconfirmed')}>確定以外を全部クリア</button></div><div className="time-stack"><button className="btn accent sm" onClick={()=>runTimes(activeTab,'remaining')}>残りの出勤時間を自動割り当て</button><button className="btn accent sm" onClick={()=>runTimes(activeTab,'unconfirmed')}>確定以外の出勤時間を自動割り当て</button></div><button className="btn ghost sm" onClick={()=>setTargetOpen(true)}>対象メンバーを選ぶ（{targetMembers(activeTab).length}人）</button><span className="cf-wrap"><button className="btn ghost sm" onClick={()=>setConfOpen(v=>!v)}>確定 {confOpen?'▲':'▼'}</button>{confOpen&&<div className="cf-panel"><div className="cf-row allrow"><button className="btn sm ghost" onClick={()=>updateStore(activeTab,x=>({...x,confM:Object.fromEntries(targetMembers(activeTab).map(m=>[m.id,true]))}))}>全員確定</button><button className="btn sm ghost" onClick={()=>{if(confirm('この店舗の確定をすべて解除しますか？'))updateStore(activeTab,x=>({...x,confM:{},confD:{}}));}}>全解除</button></div>{s.members.map(m=><div className="cf-row" key={m.id} onClick={()=>toggleConfM(activeTab,m.id)}><input type="checkbox" readOnly checked={!!ss.confM[m.id]}/>{m.name}</div>)}</div>}</span><label className="fl" style={{flexDirection:'row',alignItems:'center'}}>絞り込み<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">全員</option>{s.members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label></div>{timeMsg&&<div className={'imp-msg '+(timeMsg.ok?'imp-ok':'imp-ng')}>{timeMsg.text}</div>}{renderStoreCalendar(activeTab)}</>}
+    </div>
+    {s.members.length>0&&<div className="card"><h2><span className="num">5</span>個人サマリー</h2><div className="scroll-x"><table className="sum-table"><thead><tr><th>メンバー</th><th>みどり</th><th>リキ</th><th>合計</th><th>最大勤務</th></tr></thead><tbody>{s.members.map(m=>{const a=days.filter(x=>isIn('midori',x.d,m.id)).length,b=days.filter(x=>isIn('riki',x.d,m.id)).length;return <tr key={m.id}><td><b>{m.name}</b></td><td className="n">{a}</td><td className="n">{b}</td><td className="n big">{a+b}</td><td className="n">{m.maxDays||'—'}{m.maxDays>0&&a+b>m.maxDays&&<div className="warn">⚠ 超過</div>}</td></tr>;})}</tbody></table></div></div>}
+    <div className="card"><h2><span className="num">6</span>シフトを共有する</h2><label className="fl">ビューアの公開URL<input value={viewerUrl} onChange={e=>setViewerUrl(e.target.value)} style={{width:'100%',maxWidth:520}}/></label>{STORE_IDS.map(id=>{const out=shareOut[id],stale=(s.sharedRevision[id]??-1)!==(s.dataRevision[id]||0);return <div className={'share-store '+id} key={id}><h3>{STORE_LABEL[id]}用</h3><button className="btn accent sm" onClick={()=>buildShareV4(id)}>{STORE_LABEL[id]}の共有リンクを作成</button>{stale&&s.sharedRevision[id]>=0&&<div className="plan-note">シフト変更後のため、以前の共有リンクは古くなっています。</div>}{out&&<div><div className="hint">共有リンク（{out.link.length}文字）</div><div className="codebox">{out.link}</div><button className="btn sm" onClick={()=>copyText(out.link)}>リンクをコピー</button>{out.link.length>2400&&<div className="warn">URLが長いため、一部環境では開きにくい可能性があります。</div>}<details><summary>共有コード</summary><div className="codebox">{out.code}</div><button className="btn sm" onClick={()=>copyText(out.code)}>コードをコピー</button></details><div className="qrwrap"><div className="qrbox" ref={id==='midori'?qrMidori:qrRiki}></div><button className="btn sm" onClick={()=>saveQr(id)}>QR画像を保存</button></div></div>}</div>;})}</div>
+    {targetOpen&&activeTab!=='all'&&<><div className="tp-ov" onClick={()=>setTargetOpen(false)}></div><div className="target-panel"><h3>{STORE_LABEL[activeTab]}の対象メンバー</h3><div className="hint">自動作成と共有に含める人を選びます。対象外の人もカレンダーには薄く表示されます。</div><div className="target-list">{s.members.map(m=>{const assigned=days.some(x=>isIn(activeTab,x.d,m.id));return <label className="target-item" key={m.id}><input type="checkbox" checked={!!s.stores[activeTab].targets[m.id]} onChange={e=>toggleTarget(activeTab,m.id,e.target.checked)}/><span>{m.name}</span>{assigned&&<span className="reason">勤務あり・OFF不可</span>}</label>;})}</div><div className="modal-actions"><button className="btn accent" onClick={()=>setTargetOpen(false)}>完了</button></div></div></>}
+    {clearDialog&&<><div className="tp-ov" onClick={()=>setClearDialog(null)}></div><div className="target-panel" style={{inset:'auto max(12px,calc((100vw - 520px)/2)) 20vh'}}><h3>特別勤務をどうしますか？</h3><div className="hint">対象となる特別勤務が{clearDialog.count}件あります。特別勤務希望日の情報と選択済み店舗は、どちらを選んでも残ります。</div><div className="modal-actions"><button className="btn ghost" onClick={()=>applyClear(clearDialog.id,clearDialog.mode,true)}>特別勤務を残してクリア</button><button className="btn accent" onClick={()=>applyClear(clearDialog.id,clearDialog.mode,false)}>特別勤務の勤務採用も解除</button><button className="btn ghost" onClick={()=>setClearDialog(null)}>キャンセル</button></div></div></>}
+    {pendingImport&&<><div className="tp-ov" onClick={()=>setPendingImport(null)}></div><div className="target-panel"><h3>{pendingImport.name}さんの特別勤務希望</h3><div className="hint">日付ごとに採用店舗を選んでから取り込みます。</div><div className="target-list">{pendingImport.mustDays.map(d=><div className="target-item" key={d}><b>{s.month}月{d}日</b><label><input type="radio" name={'sp'+d} checked={pendingImport.choices[d]==='midori'} onChange={()=>setPendingImport(p=>({...p,choices:{...p.choices,[d]:'midori'}}))}/>みどり</label><label><input type="radio" name={'sp'+d} checked={pendingImport.choices[d]==='riki'} onChange={()=>setPendingImport(p=>({...p,choices:{...p.choices,[d]:'riki'}}))}/>リキ</label></div>)}</div><div className="modal-actions"><button className="btn ghost" onClick={()=>setPendingImport(null)}>キャンセル</button><button className="btn accent" onClick={()=>commitImport(pendingImport,pendingImport.choices)}>この内容で取り込む</button></div></div></>}
+    {memPop&&(()=>{const m=s.members.find(x=>x.id===memPop.mid);if(!m)return null;return <><div className="tp-ov" onClick={()=>setMemPop(null)}></div><div className="tp-pop" style={{top:memPop.top,left:memPop.left,width:230,padding:14}}><div className="tp-ttl">{m.name}の設定</div><label className="mp-row">名前<input defaultValue={m.name} onBlur={e=>renameMember(m.id,e.target.value)}/></label><label className="mp-row">社員<input type="checkbox" checked={!!m.employee} onChange={e=>setEmployee(m.id,e.target.checked)}/></label><div className="modal-actions"><button className="btn accent sm" onClick={()=>setMemPop(null)}>閉じる</button></div></div></>;})()}
+    {dayPop&&<><div className="tp-ov" onClick={()=>setDayPop(null)}></div><div className="tp-pop" style={{top:dayPop.top,left:dayPop.left,width:190,padding:14}}><div className="tp-ttl">{s.month}月{dayPop.d}日</div><div className="modal-actions"><button className="btn ghost sm" onClick={()=>{setConfD(dayPop.id,dayPop.d,false);setDayPop(null);}}>未確定</button><button className="btn accent sm" onClick={()=>{setConfD(dayPop.id,dayPop.d,true);setDayPop(null);}}>確定</button></div></div></>}
+  </div>;
+}
+
 class ErrorBoundary extends React.Component{
   constructor(p){super(p);this.state={err:null};}
   static getDerivedStateFromError(e){return {err:e};}
@@ -1454,14 +1781,14 @@ class ErrorBoundary extends React.Component{
       return (<div style={{maxWidth:560,margin:'60px auto',padding:24,background:'#fffdf8',border:'1px solid #e3ddd0',borderRadius:16,fontFamily:'sans-serif'}}>
         <h2 style={{marginBottom:10}}>表示エラーから復帰します</h2>
         <p style={{color:'#8a8378',fontSize:14,lineHeight:1.7,marginBottom:16}}>保存データが原因で表示できませんでした。下のボタンで保存をクリアして再起動してください（メンバー・希望は初期化されます）。</p>
-        <button onClick={()=>{try{localStorage.removeItem('shiftmaker_v3');}catch(e){}location.reload();}}
+        <button onClick={()=>{try{Object.keys(localStorage).filter(k=>k.startsWith('shiftmaker_v4_')).forEach(k=>localStorage.removeItem(k));localStorage.removeItem('shiftmaker_v3');}catch(e){}location.reload();}}
           style={{background:'#d8602e',color:'#fff',border:'none',borderRadius:10,padding:'10px 18px',fontWeight:700,cursor:'pointer'}}>データをリセットして再起動</button>
       </div>);
     }
     return this.props.children;
   }
 }
-ReactDOM.createRoot(document.getElementById('root')).render(<ErrorBoundary><App/></ErrorBoundary>);
+ReactDOM.createRoot(document.getElementById('root')).render(<ErrorBoundary><AppV4/></ErrorBoundary>);
 </script>
 </body>
 </html>
