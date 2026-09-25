@@ -253,8 +253,8 @@
   .target-item input{width:18px;height:18px}.target-item .reason{margin-left:auto;font-size:10px;color:var(--muted)}
   .modal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px}
   .plan-empty{font-size:11px;color:var(--muted);padding:8px 2px}
-  .all-row{display:flex;align-items:center;gap:5px;font-size:9px;padding:2px;border-top:1px solid #eee7da;min-height:15px}
-  .all-row .aname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.all-row .atime{font-variant-numeric:tabular-nums}
+  .all-calendar .mini-row .mak,.all-calendar .mini-row .mwt{cursor:default}
+  .all-calendar .mini-row .mwt{font-variant-numeric:tabular-nums}
   .share-store{border-left:4px solid var(--line);padding-left:12px;margin-top:14px}.share-store.midori{border-color:#2f8f62}.share-store.riki{border-color:#b84b4b}
   .big-prefcell{cursor:pointer;font-weight:700;font-size:18px;user-select:none;border-radius:8px;display:flex;align-items:center;justify-content:center;height:46px}
   ::-webkit-scrollbar{height:10px;width:10px}::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px}
@@ -1576,6 +1576,17 @@ function AppV4(){
       try{new window.QRCode(el,{text:out.rawLink,width:180,height:180,colorDark:'#000',colorLight:'#fff',correctLevel:window.QRCode.CorrectLevel.L});}catch(e){}
     });
   },[shareOut,viewerUrl]);
+  // カレンダー内の名前を1行に収める。複数店舗化前と同じ見え方を保つ。
+  useLayoutEffect(()=>{
+    const els=[...document.querySelectorAll('.shift-card .mnm')];
+    if(!els.length)return;
+    els.forEach(el=>{el.style.fontSize='';});
+    const sizes=els.map(el=>{
+      const base=parseFloat(getComputedStyle(el).fontSize)||8;
+      return el.clientWidth>2&&el.scrollWidth>el.clientWidth?Math.max(4,base*(el.clientWidth-1)/el.scrollWidth):0;
+    });
+    els.forEach((el,i)=>{if(sizes[i])el.style.fontSize=sizes[i].toFixed(1)+'px';});
+  });
 
   const dirty=(state,ids)=>{
     const rev={...state.dataRevision};ids.forEach(id=>rev[id]=(rev[id]||0)+1);return {...state,dataRevision:rev};
@@ -1750,7 +1761,30 @@ function AppV4(){
   const saveQr=(id)=>{const box=id==='midori'?qrMidori.current:qrRiki.current,src=box&&(box.querySelector('canvas')||box.querySelector('img'));if(!src)return;const a=document.createElement('a');a.href=src.tagName==='CANVAS'?src.toDataURL('image/png'):src.src;a.download=`shift-${id}-${s.year}-${String(s.month).padStart(2,'0')}-qr.png`;a.click();};
 
   const renderPlans=(id)=>{const x=s.stores[id];return <div><h3 style={{fontSize:15,marginBottom:6}}>{STORE_LABEL[id]}の募集時刻・人数</h3><div className="plan-grid">{PLAN_TYPES.map(type=><section className="plan-block" key={type}><div className="plan-head"><div className="plan-title">{PLAN_LABELS[type]}</div><div className="plan-total">合計 {workPlanTotal(x.workPlans[type])}名</div></div>{!x.workPlans[type].length&&<div className="plan-empty">募集枠なし</div>}{x.workPlans[type].map((row,index)=><div className="plan-row" key={row.time+'-'+index}><TimePicker value={row.time} minHour={15} allowClear={false} onChange={v=>setPlanTimeV4(id,type,index,v)}/><input className="plan-count" type="number" min="0" value={row.count} onChange={e=>setPlanCountV4(id,type,index,e.target.value)}/><button className="plan-del" onClick={()=>removePlanV4(id,type,index)}>×</button></div>)}<button className="plan-add" onClick={()=>addPlanV4(id,type)}>＋ 時間を追加</button></section>)}</div>{planMsg&&<div className={'imp-msg '+(planMsg.ok?'imp-ok':'imp-ng')}>{planMsg.text}</div>}</div>;};
-  const renderAllCalendar=()=> <div className="cal">{WD.map((w,i)=><div key={w} className={'cal-head'+(i===0||i>=5?' we':'')}>{w}</div>)}{calendarCells.map((x,i)=>!x?<div className="cal-cell blank" key={'b'+i}/>:<div className={'cal-cell'+(x.we?' we':'')} key={x.d}><div className="cal-date"><span>{x.d}<small style={{marginLeft:2}}>{WD[x.dow]}</small></span><span className="cap">{STORE_IDS.reduce((n,id)=>n+s.members.filter(m=>isIn(id,x.d,m.id)).length,0)}名</span></div>{s.members.map(m=>STORE_IDS.map(id=>isIn(id,x.d,m.id)?<div className="all-row" key={m.id+id}><span className={'store-badge '+id}>{id==='midori'?'み':'リ'}</span><span className="aname">{m.name}</span><span className="atime">{s.stores[id].times[`${m.id}-${x.d}`]||''}</span></div>:null))}</div>)}</div>;
+  const renderAllCalendar=()=> <div className="cal all-calendar">{WD.map((w,i)=><div key={w} className={'cal-head'+(i===0||i>=5?' we':'')}>{w}</div>)}{calendarCells.map((day,i)=>{
+    if(!day)return <div className="cal-cell blank" key={'b'+i}/>;
+    const rows=s.members;
+    const assigned=STORE_IDS.reduce((n,id)=>n+s.members.filter(m=>isIn(id,day.d,m.id)).length,0);
+    const required=STORE_IDS.reduce((n,id)=>n+demand(id,day),0);
+    return <div className={'cal-cell'+(day.we?' we':'')} key={day.d}>
+      <div className={'cal-date'+(assigned<required?' short':'')}><span title={day.holiday||''}>{day.d}<small>{WD[day.dow]}{day.holiday?'（祝）':''}</small></span><span className="cap">{assigned}/{required}</span></div>
+      {rows.map(m=>{
+        const id=STORE_IDS.find(storeId=>isIn(storeId,day.d,m.id));
+        const p=shownPref(m.id,day.d),av=getAvail(m.id,day.d);
+        const wish=p!=='×',cc=(p==='◯'||p==='◎')?'cmaru':p==='△'?'csankaku':'cbatsu';
+        const special=id&&specialStore(m.id,day.d)===id;
+        const assignClass=id?' '+id+'-assign':'';
+        const inactive=!STORE_IDS.some(storeId=>s.stores[storeId].targets[m.id]);
+        return <div className={'mini-row'+(inactive?' target-off':'')+(special?' special-work':'')} key={m.id}>
+          <span className={'mnm '+cc}>{m.name}</span>
+          <span className={'mpf '+cc+(wish?' wishfill':'')}>{p}</span>
+          <span className={'mav'+(wish?' wishfill':'')}>{wish&&av?av:'·'}</span>
+          <span className={'mak'+assignClass} title={id?STORE_LABEL[id]+'勤務':''}>{id?'◯':'・'}</span>
+          <span className={'mwt'+assignClass}>{id?(s.stores[id].times[`${m.id}-${day.d}`]||'·'):<span className="dim">·</span>}</span>
+        </div>;
+      })}
+    </div>;
+  })}</div>;
   const renderStoreCalendar=(id)=>{const x=s.stores[id],other=otherStore(id);return <div className="cal">{WD.map((w,i)=><div key={w} className={'cal-head'+(i===0||i>=5?' we':'')}>{w}</div>)}{calendarCells.map((day,i)=>{if(!day)return <div className="cal-cell blank" key={'b'+i}/>;const rows=filter==='all'?s.members:s.members.filter(m=>m.id===filter),inCount=s.members.filter(m=>isIn(id,day.d,m.id)).length,def=demand(id,day);return <div className={'cal-cell'+(day.we?' we':'')} key={day.d}><div className={'cal-date'+(inCount<def?' short':'')}><span><span className="dnum" onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setDayPop({id,d:day.d,top:r.bottom+5,left:Math.max(8,r.left)});}}>{day.d}</span><small>{WD[day.dow]}</small>{x.confD[day.d]?' 🔒':''}</span><span className="cap">{inCount}/{def}</span></div>{rows.map(m=>{const inn=isIn(id,day.d,m.id),otherIn=isIn(other,day.d,m.id),cf=isConf(id,day.d,m.id),p=shownPref(m.id,day.d),av=getAvail(m.id,day.d),special=inn&&specialStore(m.id,day.d)===id,assignClass=inn&&!cf?' '+id+'-assign':'';return <div className={'mini-row'+(!x.targets[m.id]?' target-off':'')+(otherIn?' other-store':'')+(special?' special-work':'')} key={m.id}><span className="mnm">{m.name}{otherIn&&<b className={'store-badge '+other}>{other==='midori'?'み':'リ'}</b>}</span><span className={'mpf '+prefClass(p)}>{p}</span><span className="mav">{av||'·'}</span><span className={'mak'+(inn?(cf?' lockfill':' workfill'):'')+assignClass} onClick={()=>toggleAssign(id,day.d,m.id)}>{inn?'◯':otherIn?'→':'・'}</span><span className={'mwt'+(inn?(cf?' lockfill':' workfill'):'')+assignClass}>{inn?<TimePicker value={x.times[`${m.id}-${day.d}`]||''} initialValue={av} disabled={cf} onChange={v=>setWorkTime(id,m.id,day.d,v)}/>:<span className="dim">{otherIn?s.stores[other].times[`${m.id}-${day.d}`]||STORE_LABEL[other]:'·'}</span>}</span></div>;})}</div>;})}</div>;};
 
   return <div className="wrap">
@@ -1763,7 +1797,38 @@ function AppV4(){
     <div className="card shift-card"><div className="shift-title-row"><h2><span className="num">4</span>シフト作成</h2></div><div className="store-tabs"><button className={'store-tab all'+(activeTab==='all'?' active':'')} onClick={()=>setActiveTab('all')}>全体</button><button className={'store-tab midori'+(activeTab==='midori'?' active':'')} onClick={()=>setActiveTab('midori')}>みどり</button><button className={'store-tab riki'+(activeTab==='riki'?' active':'')} onClick={()=>setActiveTab('riki')}>リキ</button></div>
       {activeTab==='all'?<><div className="hint" style={{marginBottom:8}}>全体タブは閲覧専用です。編集は各店舗タブで行います。</div>{renderAllCalendar()}</>:<>{renderPlans(activeTab)}<div className="toolbar" style={{marginTop:16}}><div className="fill-stack"><button className="btn accent" disabled={PLAN_TYPES.reduce((n,t)=>n+workPlanTotal(ss.workPlans[t]),0)===0} onClick={()=>runFill(activeTab,'remaining')}>残りを自動で作成 ▶</button><button className="btn accent sm" disabled={PLAN_TYPES.reduce((n,t)=>n+workPlanTotal(ss.workPlans[t]),0)===0} onClick={()=>runFill(activeTab,'unconfirmed')}>確定以外を自動作成</button></div><div className="clear-stack"><button className="btn ghost sm" onClick={()=>openClear(activeTab,'all')}>全部クリア</button><button className="btn ghost sm" onClick={()=>openClear(activeTab,'unconfirmed')}>確定以外を全部クリア</button></div><div className="time-stack"><button className="btn accent sm" onClick={()=>runTimes(activeTab,'remaining')}>残りの出勤時間を自動割り当て</button><button className="btn accent sm" onClick={()=>runTimes(activeTab,'unconfirmed')}>確定以外の出勤時間を自動割り当て</button></div><button className="btn ghost sm" onClick={()=>setTargetOpen(true)}>対象メンバーを選ぶ（{targetMembers(activeTab).length}人）</button><span className="cf-wrap"><button className="btn ghost sm" onClick={()=>setConfOpen(v=>!v)}>確定 {confOpen?'▲':'▼'}</button>{confOpen&&<div className="cf-panel"><div className="cf-row allrow"><button className="btn sm ghost" onClick={()=>updateStore(activeTab,x=>({...x,confM:Object.fromEntries(targetMembers(activeTab).map(m=>[m.id,true]))}))}>全員確定</button><button className="btn sm ghost" onClick={()=>{if(confirm('この店舗の確定をすべて解除しますか？'))updateStore(activeTab,x=>({...x,confM:{},confD:{}}));}}>全解除</button></div>{s.members.map(m=><div className="cf-row" key={m.id} onClick={()=>toggleConfM(activeTab,m.id)}><input type="checkbox" readOnly checked={!!ss.confM[m.id]}/>{m.name}</div>)}</div>}</span><label className="fl" style={{flexDirection:'row',alignItems:'center'}}>絞り込み<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">全員</option>{s.members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label></div>{timeMsg&&<div className={'imp-msg '+(timeMsg.ok?'imp-ok':'imp-ng')}>{timeMsg.text}</div>}{renderStoreCalendar(activeTab)}</>}
     </div>
-    {s.members.length>0&&<div className="card"><h2><span className="num">5</span>個人サマリー</h2><div className="scroll-x"><table className="sum-table"><thead><tr><th>メンバー</th><th>みどり</th><th>リキ</th><th>合計</th><th>最大勤務</th></tr></thead><tbody>{s.members.map(m=>{const a=days.filter(x=>isIn('midori',x.d,m.id)).length,b=days.filter(x=>isIn('riki',x.d,m.id)).length;return <tr key={m.id}><td><b>{m.name}</b></td><td className="n">{a}</td><td className="n">{b}</td><td className="n big">{a+b}</td><td className="n">{m.maxDays||'—'}{m.maxDays>0&&a+b>m.maxDays&&<div className="warn">⚠ 超過</div>}</td></tr>;})}</tbody></table></div></div>}
+    {s.members.length>0&&<div className="card">
+      <h2><span className="num">5</span>個人サマリー</h2>
+      <div className="scroll-x"><table className="sum-table">
+        <thead><tr>
+          <th>メンバー</th><th>エラー</th><th>連勤禁止</th><th>最大</th>
+          <th>希望(平日)</th><th>希望(金土日祝)</th><th>希望合計</th>
+          <th>採用(平日)</th><th>採用(金土日祝)</th><th>採用合計</th>
+        </tr></thead>
+        <tbody>{s.members.map(m=>{
+          const wishCount=(pool)=>{let mar=0,san=0;days.forEach(day=>{if(pool==='weekday'&&day.we)return;if(pool==='weekend'&&!day.we)return;const p=shownPref(m.id,day.d);if(p==='◯'||p==='◎')mar++;else if(p==='△')san++;});return {mar,san,wish:mar+san*.5};};
+          const adoptedCount=(pool,id)=>days.filter(day=>{if(pool==='weekday'&&day.we)return false;if(pool==='weekend'&&!day.we)return false;return id?isIn(id,day.d,m.id):STORE_IDS.some(storeId=>isIn(storeId,day.d,m.id));}).length;
+          const rw=wishCount('weekday'),re=wishCount('weekend');
+          const aw=adoptedCount('weekday'),ae=adoptedCount('weekend');
+          const midori=adoptedCount(null,'midori'),riki=adoptedCount(null,'riki'),total=aw+ae;
+          let run=0,consecError=false;days.forEach(day=>{run=STORE_IDS.some(id=>isIn(id,day.d,m.id))?run+1:0;if(m.noConsec&&run>=m.noConsec)consecError=true;});
+          const maxError=m.maxDays>0&&total>m.maxDays;
+          const missingSpecial=days.filter(day=>{const id=specialStore(m.id,day.d);return id&&!isIn(id,day.d,m.id);}).map(day=>day.d);
+          return <tr key={m.id}>
+            <td><b>{m.name}</b></td>
+            <td className="error-cell">{missingSpecial.length>0&&<div className="warn">⚠ ◎未採用：{missingSpecial.join('日、')}日</div>}{consecError&&<div className="warn">⚠ 連勤違反あり</div>}{maxError&&<div className="warn">⚠ 最大勤務日数超過</div>}</td>
+            <td className="n">{m.noConsec?m.noConsec+'連勤禁止':'—'}</td>
+            <td className="n">{m.maxDays?m.maxDays+'日':'—'}</td>
+            <td className="n">{rw.wish.toFixed(1)}<div style={{fontSize:10,color:'var(--muted)'}}>◯{rw.mar} △{rw.san}</div></td>
+            <td className="n">{re.wish.toFixed(1)}<div style={{fontSize:10,color:'var(--muted)'}}>◯{re.mar} △{re.san}</div></td>
+            <td className="n big">{(rw.wish+re.wish).toFixed(1)}</td>
+            <td className="n">{aw}</td><td className="n">{ae}</td>
+            <td className="n big" style={{color:'var(--accent)'}}>{total}<div style={{fontSize:10,color:'var(--muted)',fontFamily:'inherit',fontWeight:500}}>みどり{midori}・リキ{riki}</div></td>
+          </tr>;
+        })}</tbody>
+      </table></div>
+      <div className="hint">希望合計は ◯・◎=1.0、△=0.5 で計算。エラーは確認用の警告で、自動作成や共有を止めません。採用は両店舗のカレンダーを合算し、同じ日は1勤務として数えます。</div>
+    </div>}
     <div className="card"><h2><span className="num">6</span>シフトを共有する</h2><label className="fl">ビューアの公開URL<input value={viewerUrl} onChange={e=>setViewerUrl(e.target.value)} style={{width:'100%',maxWidth:520}}/></label>{STORE_IDS.map(id=>{const out=shareOut[id],stale=(s.sharedRevision[id]??-1)!==(s.dataRevision[id]||0);return <div className={'share-store '+id} key={id}><h3>{STORE_LABEL[id]}用</h3><button className="btn accent sm" onClick={()=>buildShareV4(id)}>{STORE_LABEL[id]}の共有リンクを作成</button>{stale&&s.sharedRevision[id]>=0&&<div className="plan-note">シフト変更後のため、以前の共有リンクは古くなっています。</div>}{out&&<div><div className="hint">共有リンク（{out.link.length}文字）</div><div className="codebox">{out.link}</div><button className="btn sm" onClick={()=>copyText(out.link)}>リンクをコピー</button>{out.link.length>2400&&<div className="warn">URLが長いため、一部環境では開きにくい可能性があります。</div>}<details><summary>共有コード</summary><div className="codebox">{out.code}</div><button className="btn sm" onClick={()=>copyText(out.code)}>コードをコピー</button></details><div className="qrwrap"><div className="qrbox" ref={id==='midori'?qrMidori:qrRiki}></div><button className="btn sm" onClick={()=>saveQr(id)}>QR画像を保存</button></div></div>}</div>;})}</div>
     {targetOpen&&activeTab!=='all'&&<><div className="tp-ov" onClick={()=>setTargetOpen(false)}></div><div className="target-panel"><h3>{STORE_LABEL[activeTab]}の対象メンバー</h3><div className="hint">自動作成と共有に含める人を選びます。対象外の人もカレンダーには薄く表示されます。</div><div className="target-list">{s.members.map(m=>{const assigned=days.some(x=>isIn(activeTab,x.d,m.id));return <label className="target-item" key={m.id}><input type="checkbox" checked={!!s.stores[activeTab].targets[m.id]} onChange={e=>toggleTarget(activeTab,m.id,e.target.checked)}/><span>{m.name}</span>{assigned&&<span className="reason">勤務あり・OFF不可</span>}</label>;})}</div><div className="modal-actions"><button className="btn accent" onClick={()=>setTargetOpen(false)}>完了</button></div></div></>}
     {clearDialog&&<><div className="tp-ov" onClick={()=>setClearDialog(null)}></div><div className="target-panel" style={{inset:'auto max(12px,calc((100vw - 520px)/2)) 20vh'}}><h3>特別勤務をどうしますか？</h3><div className="hint">対象となる特別勤務が{clearDialog.count}件あります。特別勤務希望日の情報と選択済み店舗は、どちらを選んでも残ります。</div><div className="modal-actions"><button className="btn ghost" onClick={()=>applyClear(clearDialog.id,clearDialog.mode,true)}>特別勤務を残してクリア</button><button className="btn accent" onClick={()=>applyClear(clearDialog.id,clearDialog.mode,false)}>特別勤務の勤務採用も解除</button><button className="btn ghost" onClick={()=>setClearDialog(null)}>キャンセル</button></div></div></>}
