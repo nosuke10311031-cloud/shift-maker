@@ -60,7 +60,7 @@ h1 .dot{width:12px;height:12px;border-radius:50%;background:#d8602e;box-shadow:0
 .view-tab{font-family:inherit;font-weight:700;padding:8px;border:1px solid #e3ddd0;border-radius:8px;background:#fffdf8;color:#2b2724;cursor:pointer}
 .view-tab.on.all{background:#2b2724;color:#fff}.view-tab.on.midori{background:#2f8f62;color:#fff}.view-tab.on.riki{background:#b84b4b;color:#fff}.view-tab:disabled{opacity:.38;cursor:default}
 .cache-note{font-size:11px;color:#8a8378;margin:-4px 0 8px}.cache-clear{border:0;background:transparent;color:#a33;text-decoration:underline;font:inherit;cursor:pointer;margin-left:8px}
-.vmw.midori-work{background:#8fd3b1;color:#174c35;box-shadow:inset 0 0 0 1px #2f8f62}.vmw.riki-work{background:#eda0a0;color:#5e1f1f;box-shadow:inset 0 0 0 1px #b84b4b}.store-mini{display:inline-block;border-radius:3px;padding:0 2px;margin-right:1px;color:#fff;font-size:.8em}.store-mini.midori{background:#2f8f62}.store-mini.riki{background:#b84b4b}
+.vmw.midori-work{background:#d9efe4}.vmw.riki-work{background:#f2dada}.store-mini{display:inline-block;border-radius:3px;padding:0 2px;margin-right:1px;color:#fff;font-size:.8em}.store-mini.midori{background:#2f8f62}.store-mini.riki{background:#b84b4b}
 @media(max-width:600px){
 body{padding:10px 2px 50px}
 .card{padding:10px 3px}
@@ -322,11 +322,11 @@ h1,.bar,.card,.legend2,.foot{display:none!important}
         for(var r=0;r<rows.length;r++){
           var id=rows[r].id;var p=prefOf(id,d);var inn=isIn(id,d);var av=availOf(id,d);var tm=timeOf(id,d);
           var wishCell=(p!=='×'&&av)?av:p;
-          var storeId=(D.storeOf&&D.storeOf[id+'-'+d])||(D.isV4&&D.storeId!=='all'?D.storeId:''),storePrefix=D.storeId==='all'?(storeId==='midori'?'み ':storeId==='riki'?'リ ':''):'';
-          var workCell=inn?(storePrefix+(tm||'')):'';
+          var storeId=(D.storeOf&&D.storeOf[id+'-'+d])||(D.isV4&&D.storeId!=='all'?D.storeId:'');
+          var workCell=inn?(tm||''):'';
           h+='<div class="vline">';
           h+='<span class="vmp '+pcls(p)+'">'+wishCell+'</span>';
-          h+='<span class="vmw'+(inn?' vwork':'')+(storeId?' '+storeId+'-work':'')+'">'+workCell+'</span>';
+          h+='<span class="vmw'+(inn?' vwork':'')+(inn&&storeId?' '+storeId+'-work':'')+'">'+workCell+'</span>';
           h+='<span class="vblankbox"></span>';
           h+='</div>';
         }
