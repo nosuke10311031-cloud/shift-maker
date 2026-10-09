@@ -41,11 +41,11 @@
   .iday{font-family:'Zen Maru Gothic';font-weight:700;font-size:12px;align-self:flex-start}
   .iday .wd{font-size:9px;color:var(--muted);margin-left:2px}
   .iday.we .wd{color:var(--weekend)}
-  .ipref{width:100%;text-align:center;font-weight:700;font-size:20px;border-radius:6px;padding:2px 0;cursor:pointer;user-select:none}
+  .ipref{width:100%;text-align:center;font-family:inherit;font-weight:700;font-size:20px;border:0;border-radius:6px;padding:2px 0;cursor:pointer;user-select:none}
   .ipref.pm{color:var(--maru);background:var(--maru-bg)}
   .ipref.ps{color:var(--sankaku);background:var(--sankaku-bg)}
   .ipref.px{color:var(--batsu);background:var(--batsu-bg)}
-  .itime{width:100%;font-size:10px;border:1px solid var(--line);border-radius:6px;padding:3px 2px;background:#fff;color:var(--accent);font-weight:700;cursor:pointer;text-align:center}
+  .itime{width:100%;font-family:inherit;font-size:10px;border:1px solid var(--line);border-radius:6px;padding:3px 2px;background:#fff;color:var(--accent);font-weight:700;cursor:pointer;text-align:center}
   .itime.empty{color:var(--muted);font-weight:400}
   .itime:disabled,.itime.dis{background:#efece5;color:#c2bcb1;cursor:default;border-style:dashed}
   .icell.special-ok{box-shadow:inset 0 0 0 2px var(--maru)}
@@ -53,11 +53,14 @@
   .ipref.pdouble{color:#18754d;background:#d5efe2}
   .special-list{display:flex;flex-direction:column;gap:8px}
   .special-label{font-size:12px;color:var(--muted);font-weight:700;margin-bottom:5px}
-  .special-row{display:grid;grid-template-columns:minmax(0,190px) auto;gap:8px;align-items:center;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#faf7f0}
+  .special-row{display:grid;grid-template-columns:minmax(0,190px) minmax(150px,1fr) auto;gap:8px;align-items:center;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#faf7f0}
   .special-date{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:38px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;text-align:left}
   .special-date.empty{color:var(--muted);font-weight:500}
   .special-date::after{content:'⌄';color:var(--accent);font-size:16px;line-height:1}
   .special-remove{align-self:center;justify-self:start;white-space:nowrap;padding:4px 9px!important}
+  .special-store{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:12px;font-weight:700}
+  .special-store label{display:inline-flex;align-items:center;gap:3px;min-height:38px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer}
+  .special-store input{width:16px;height:16px}
   .special-error{grid-column:1/-1;color:#b3261e;font-size:12px;font-weight:700;line-height:1.5}
   .special-note{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
   /* 提出コード */
@@ -78,6 +81,7 @@
     .iday{font-size:8px}.iday .wd{font-size:6px}
     .ipref{font-size:14px;padding:1px 0}
     .itime{font-size:7px;padding:2px 0}
+    .special-row{grid-template-columns:minmax(0,1fr) auto}.special-store{grid-column:1/-1}
   }
   /* 時刻ホイール */
   .ov{position:fixed;inset:0;z-index:999;background:rgba(20,16,12,.18)}
@@ -103,6 +107,7 @@
 <div class="wrap" id="wrap">
   <h1><span class="dot"></span>シフト希望入力</h1>
   <div class="sub">あなたの希望を入力して、提出コードを管理者に送ってください。</div>
+  <div id="storage-warning"></div>
 
   <div class="card">
     <h2><span class="num">↺</span>前回の提出コードから再編集</h2>
@@ -146,11 +151,11 @@
 
   <div class="card">
     <h2><span class="num">◎</span>特別勤務希望日</h2>
-    <div class="hint" style="margin-top:0;margin-bottom:10px">友達が来るなどの理由で、「この日は絶対に入りたい」という日だけ設定してください。日付欄をタップして、ホイールから選べます。</div>
-    <div class="special-label">日付</div>
+    <div class="hint" style="margin-top:0;margin-bottom:10px">友達が来るなどの理由で、「この日は絶対に入りたい」という日だけ設定してください。日付と、勤務を希望する店舗を選びます。</div>
+    <div class="special-label">日付・希望店舗</div>
     <div class="special-list" id="special-list"></div>
     <button class="btn sm ghost" data-act="add-special" style="margin-top:10px">＋ 特別勤務希望日を追加</button>
-    <div class="special-note">特別勤務希望日は、上のカレンダーでも必ず◯にしてください。内容が矛盾している場合は提出コードを作成できません。</div>
+    <div class="special-note">特別勤務希望日は、上のカレンダーでも必ず◯にしてください。日付・希望店舗・カレンダーの内容が揃っていない場合は提出コードを作成できません。</div>
     <div id="special-msg"></div>
   </div>
 
@@ -175,16 +180,19 @@
   function encodeSubmission(obj){try{return btoa(String.fromCharCode.apply(null,new TextEncoder().encode(JSON.stringify(obj))));}catch(e){return '';}}
   function decodeSubmission(str){try{var clean=(str||'').replace(/\s+/g,'');var bytes=Uint8Array.from(atob(clean),function(c){return c.charCodeAt(0);});return JSON.parse(new TextDecoder().decode(bytes));}catch(e){return null;}}
 
-  var store={
-    load:function(){try{var r=localStorage.getItem('shiftmaker_staff');return r?JSON.parse(r):null;}catch(e){return null;}},
-    save:function(s){try{localStorage.setItem('shiftmaker_staff',JSON.stringify(s));}catch(e){}}
+  var store={blocked:false,
+    load:function(){try{var r=localStorage.getItem('shiftmaker_staff');return r?JSON.parse(r):null;}catch(e){this.blocked=true;return null;}},
+    save:function(s){if(this.blocked)return false;try{localStorage.setItem('shiftmaker_staff',JSON.stringify(s));return true;}catch(e){return false;}}
   };
   var now=new Date();
-  var S=store.load()||{name:'',year:now.getFullYear(),month:now.getMonth()+1,nc:0,md:0,employee:false,prefs:{},avail:{},must:[]};
+  var S=store.load()||{name:'',year:now.getFullYear(),month:now.getMonth()+1,nc:0,md:0,employee:false,prefs:{},avail:{},must:[],mustStore:{}};
   if(!S.prefs||typeof S.prefs!=='object')S.prefs={};
   if(!S.avail||typeof S.avail!=='object')S.avail={};
   if(!Array.isArray(S.must))S.must=[];
-  function persist(){store.save(S);}
+  if(!S.mustStore||typeof S.mustStore!=='object')S.mustStore={};
+  function showStorageWarning(text){var el=document.getElementById('storage-warning');if(el)el.innerHTML=text?'<div class="msg ng">'+esc(text)+'</div>':'';}
+  function persist(){if(!store.save(S))showStorageWarning(store.blocked?'前回の保存データを読み取れません。元データを保護するため自動保存を停止しています。':'この端末へ保存できませんでした。提出コードを作成して控えてください。');}
+  if(store.blocked)showStorageWarning('前回の保存データを読み取れません。元データを保護するため自動保存を停止しています。');
 
   // ---- 情報フォーム初期化 ----
   var elName=document.getElementById('i-name'),elYear=document.getElementById('i-year'),elMonth=document.getElementById('i-month'),elNc=document.getElementById('i-nc'),elMd=document.getElementById('i-md'),elEmp=document.getElementById('i-emp');
@@ -202,7 +210,7 @@
       var ok=window.confirm(S.year+'年'+S.month+'月分の希望・希望時刻・特別勤務希望日を削除して、'+nextYear+'年'+nextMonth+'月へ変更しますか？');
       if(!ok){syncInfoForm();return;}
     }
-    S.year=nextYear;S.month=nextMonth;S.prefs={};S.avail={};S.must=[];
+    S.year=nextYear;S.month=nextMonth;S.prefs={};S.avail={};S.must=[];S.mustStore={};
     persist();syncInfoForm();renderCal();renderSpecial();
     document.getElementById('sub-area').innerHTML='';document.getElementById('edit-msg').innerHTML='';
   }
@@ -230,15 +238,15 @@
       var dow=new Date(y,m-1,d).getDay();var we=isWE(dow);var p=pref(d);var av=avail(d);var sp=isSpecial(d);var validSpecial=sp&&p==='◯';var shown=validSpecial?'◎':p;
       h+='<div class="icell'+(we?' we':'')+(validSpecial?' special-ok':sp?' special-conflict':'')+'">';
       h+='<div class="iday'+(we?' we':'')+'">'+d+'<span class="wd">'+WD[dow]+'</span></div>';
-      h+='<div class="ipref '+prefCls(shown)+'" data-act="pref" data-d="'+d+'">'+shown+'</div>';
+      h+='<button type="button" class="ipref '+prefCls(shown)+'" data-act="pref" data-d="'+d+'" aria-label="'+d+'日の希望 '+shown+'。タップして変更">'+shown+'</button>';
       if(p==='×'){
-        h+='<div class="itime dis">--:--</div>';
+        h+='<button type="button" class="itime dis" disabled aria-label="'+d+'日の希望開始時刻は未設定">--:--</button>';
       }else{
-        h+='<div class="itime'+(av?'':' empty')+'" data-act="time" data-d="'+d+'">'+(av?av+'〜':'--:--')+'</div>';
+        h+='<button type="button" class="itime'+(av?'':' empty')+'" data-act="time" data-d="'+d+'" aria-label="'+d+'日の希望開始時刻 '+(av?av:'未設定')+'。タップして変更">'+(av?av+'〜':'--:--')+'</button>';
       }
       h+='</div>';
     }
-    document.getElementById('cal').innerHTML=h;
+    var cal=document.getElementById('cal');cal.innerHTML=h;bindActions(cal);
   }
 
   function cyclePref(d){
@@ -261,6 +269,7 @@
       if(d<1||d>n)errors.push({index:index,text:'選択した日付がこの月に存在しません。'});
       else if(seen[d])errors.push({index:index,text:'同じ日付が重複しています。'});
       else if(pref(d)!=='◯')errors.push({index:index,text:d+'日はカレンダー上で◯にされていません。このままでは提出コードを生成できません。'});
+      else if(S.mustStore[d]!=='midori'&&S.mustStore[d]!=='riki')errors.push({index:index,text:d+'日の希望店舗を選択してください。'});
       seen[d]=true;
     });
     return errors;
@@ -270,12 +279,14 @@
     var h='';
     rows.forEach(function(raw,index){
       var value=parseInt(raw)||0;var err=errors.find(function(x){return x.index===index;});
+      var selected=value?S.mustStore[value]:'';
       h+='<div class="special-row"><button class="special-date'+(value?'':' empty')+'" data-act="special-date" data-index="'+index+'">'+(value?S.month+'月'+value+'日':'日付を選択')+'</button>';
+      h+='<div class="special-store"><label><input type="radio" name="special-store-'+index+'" data-act="special-store" data-index="'+index+'" data-store="midori"'+(selected==='midori'?' checked':'')+(value?'':' disabled')+'>みどり</label><label><input type="radio" name="special-store-'+index+'" data-act="special-store" data-index="'+index+'" data-store="riki"'+(selected==='riki'?' checked':'')+(value?'':' disabled')+'>リキ</label></div>';
       if(value||S.must.length>1)h+='<button class="btn sm ghost special-remove" data-act="remove-special" data-index="'+index+'">削除</button>';
       if(err)h+='<div class="special-error">⚠ '+esc(err.text)+'</div>';
       h+='</div>';
     });
-    list.innerHTML=h;
+    list.innerHTML=h;bindActions(list);
     var msg=document.getElementById('special-msg');msg.innerHTML=errors.length?'<div class="msg ng">特別勤務希望日とカレンダーの希望を確認してください。</div>':'';
   }
   function addSpecial(){
@@ -283,11 +294,13 @@
     if(specialDays().length>=dim(S.year,S.month)){document.getElementById('special-msg').innerHTML='<div class="msg ng">これ以上日付を追加できません。</div>';return;}
     S.must=(S.must||[]).concat(0);persist();renderSpecial();
   }
-  function removeSpecial(index){S.must=(S.must||[]).filter(function(_,i){return i!==index;});persist();renderCal();renderSpecial();}
+  function removeSpecial(index){var old=parseInt((S.must||[])[index])||0;S.must=(S.must||[]).filter(function(_,i){return i!==index;});if(old)delete S.mustStore[old];persist();renderCal();renderSpecial();}
   function setSpecial(index,value){
-    var rows=(S.must&&S.must.length)?S.must.slice():[0];rows[index]=parseInt(value)||0;S.must=rows.filter(function(d,i){return d||rows.length>1||i===0;});
+    var rows=(S.must&&S.must.length)?S.must.slice():[0],old=parseInt(rows[index])||0;rows[index]=parseInt(value)||0;S.must=rows.filter(function(d,i){return d||rows.length>1||i===0;});
+    if(old&&old!==parseInt(value))delete S.mustStore[old];
     persist();renderCal();renderSpecial();
   }
+  function setSpecialStore(index,storeId){var d=parseInt((S.must||[])[index])||0;if(!d||['midori','riki'].indexOf(storeId)<0)return;S.mustStore[d]=storeId;persist();renderSpecial();}
 
   // ---- 時刻ホイール ----
   var curD=null,wh='17',wm='00',specialIndex=null,specialDay='1';
@@ -344,7 +357,8 @@
     var errors=specialErrors();
     if(errors.length){renderSpecial();area.innerHTML='<div class="msg ng">特別勤務希望日とカレンダーの希望が一致していないため、提出コードを作成できません。</div>';return;}
     var must=specialDays();
-    var obj={t:'shift-pref',name:S.name.trim(),y:S.year,m:S.month,nc:S.nc||0,md:S.md||0,e:!!S.employee,p:S.prefs,a:S.avail,must:must};
+    var mustStore={};must.forEach(function(d){mustStore[d]=S.mustStore[d];});
+    var obj={t:'shift-pref',name:S.name.trim(),y:S.year,m:S.month,nc:S.nc||0,md:S.md||0,e:!!S.employee,p:S.prefs,a:S.avail,must:must,mustStore:mustStore};
     var code=encodeSubmission(obj);
     area.innerHTML='<div class="qrwrap"><div style="flex:1 1 280px">'
       +'<div class="hint" style="margin-top:0;margin-bottom:6px">このコードをコピーして管理者にLINE等で送ってください：</div>'
@@ -359,28 +373,89 @@
   }
 
   // ---- 提出コードから再編集 ----
+  function isPlainObject(value){return !!value&&typeof value==='object'&&!Array.isArray(value);}
+  function integerValue(value){
+    if(typeof value==='number')return Number.isInteger(value)?value:null;
+    if(typeof value==='string'&&/^\d+$/.test(value))return Number(value);
+    return null;
+  }
+  function validateLoadedSubmission(obj){
+    if(!isPlainObject(obj)||obj.t!=='shift-pref')return {error:'コードの種類を確認できません。'};
+    var year=integerValue(obj.y),month=integerValue(obj.m);
+    if(year===null||year<2000||year>2099)return {error:'対象年が正しくありません（2000〜2099年）。'};
+    if(month===null||month<1||month>12)return {error:'対象月が正しくありません（1〜12月）。'};
+    if(obj.name!=null&&typeof obj.name!=='string')return {error:'名前の形式が正しくありません。'};
+    var count=dim(year,month),prefs={},avail={},must=[],seen={},prefSeen={},availSeen={};
+    var rawPrefs=obj.p==null?{}:obj.p;
+    if(!isPlainObject(rawPrefs))return {error:'希望日のデータ形式が正しくありません。'};
+    var prefKeys=Object.keys(rawPrefs);
+    for(var i=0;i<prefKeys.length;i++){
+      var pk=prefKeys[i],pd=integerValue(pk),pv=rawPrefs[pk];
+      if(pd===null||pd<1||pd>count)return {error:'希望日に、この月に存在しない日付が含まれています。'};
+      if(prefSeen[pd])return {error:'希望日に同じ日付が重複しています。'};
+      prefSeen[pd]=true;
+      if(['◯','△','×','◎'].indexOf(pv)<0)return {error:pd+'日の希望値が正しくありません。'};
+      if(pv==='◎'){prefs[pd]='◯';must.push(pd);}else prefs[pd]=pv;
+    }
+    var rawAvail=obj.a==null?{}:obj.a;
+    if(!isPlainObject(rawAvail))return {error:'希望開始時刻のデータ形式が正しくありません。'};
+    var availKeys=Object.keys(rawAvail),timePattern=/^(?:[01]\d|2[0-3]):(?:00|15|30|45)$/;
+    for(var j=0;j<availKeys.length;j++){
+      var ak=availKeys[j],ad=integerValue(ak),av=rawAvail[ak];
+      if(ad===null||ad<1||ad>count)return {error:'希望開始時刻に、この月に存在しない日付が含まれています。'};
+      if(availSeen[ad])return {error:'希望開始時刻に同じ日付が重複しています。'};
+      availSeen[ad]=true;
+      if(typeof av!=='string'||!timePattern.test(av))return {error:ad+'日の希望開始時刻が正しくありません。'};
+      avail[ad]=av;
+    }
+    var rawMust=obj.must==null?[]:obj.must;
+    if(!Array.isArray(rawMust))return {error:'特別勤務希望日のデータ形式が正しくありません。'};
+    var rawMustSeen={};
+    for(var k=0;k<rawMust.length;k++){
+      var md=integerValue(rawMust[k]);
+      if(md===null||md<1||md>count)return {error:'特別勤務希望日に、この月に存在しない日付が含まれています。'};
+      if(rawMustSeen[md])return {error:'特別勤務希望日に同じ日付が重複しています。'};
+      rawMustSeen[md]=true;
+      if(must.indexOf(md)<0)must.push(md);
+    }
+    var uniqueMust=[];
+    for(var l=0;l<must.length;l++){
+      var day=must[l];
+      seen[day]=true;uniqueMust.push(day);
+      if(prefs[day]!=='◯')return {error:day+'日の特別勤務希望とカレンダーの希望が一致していません。'};
+    }
+    var mustStore={},rawStores=obj.mustStore;
+    if(rawStores!=null){
+      if(!isPlainObject(rawStores))return {error:'特別勤務希望の店舗データ形式が正しくありません。'};
+      var storeKeys=Object.keys(rawStores);
+      for(var n=0;n<storeKeys.length;n++){
+        var sk=storeKeys[n],sd=integerValue(sk),sv=rawStores[sk];
+        if(sd===null||sd<1||sd>count||!seen[sd])return {error:'特別勤務希望の店舗に対応しない日付が含まれています。'};
+        if(sv!=='midori'&&sv!=='riki')return {error:sd+'日の希望店舗が正しくありません。'};
+        mustStore[sd]=sv;
+      }
+    }
+    var nc=obj.nc==null?0:integerValue(obj.nc),mdays=obj.md==null?0:integerValue(obj.md);
+    if(nc===null||nc<0||mdays===null||mdays<0)return {error:'連勤禁止または最大勤務日数が正しくありません。'};
+    return {value:{
+      name:obj.name||'',year:year,month:month,nc:nc,md:mdays,employee:!!obj.e,
+      prefs:prefs,avail:avail,must:uniqueMust,mustStore:mustStore
+    }};
+  }
   function loadCode(){
     var msg=document.getElementById('edit-msg');
     var raw=document.getElementById('edit-code').value;
     var obj=decodeSubmission(raw);
-    if(!obj||obj.t!=='shift-pref'){
+    if(!obj){
       msg.innerHTML='<div class="msg ng">コードを読み取れませんでした。コピーし直して、もう一度貼り付けてください。</div>';
       return;
     }
-    var loadedPrefs=obj.p&&typeof obj.p==='object'?{...obj.p}:{};var loadedMust=Array.isArray(obj.must)?obj.must.slice():[];
-    Object.keys(loadedPrefs).forEach(function(d){if(loadedPrefs[d]==='◎'){loadedPrefs[d]='◯';loadedMust.push(parseInt(d));}});
-    loadedMust=loadedMust.map(function(d){return parseInt(d)||0;}).filter(function(d,i,a){return d>0&&a.indexOf(d)===i;});
-    S={
-      name:obj.name||'',
-      year:parseInt(obj.y)||now.getFullYear(),
-      month:parseInt(obj.m)||now.getMonth()+1,
-      nc:Math.max(0,parseInt(obj.nc)||0),
-      md:Math.max(0,parseInt(obj.md)||0),
-      employee:!!obj.e,
-      prefs:loadedPrefs,
-      avail:obj.a&&typeof obj.a==='object'?obj.a:{},
-      must:loadedMust
-    };
+    var checked=validateLoadedSubmission(obj);
+    if(checked.error){
+      msg.innerHTML='<div class="msg ng">コードを読み込めませんでした。'+esc(checked.error)+' 現在の入力内容は変更していません。</div>';
+      return;
+    }
+    S=checked.value;
     persist();syncInfoForm();renderCal();renderSpecial();
     document.getElementById('sub-area').innerHTML='';
     msg.innerHTML='<div class="msg ok">'+esc(S.name||'このコード')+' の希望を読み込みました。下の内容を直して、もう一度「提出コードを作成」を押してください。</div>';
@@ -394,9 +469,9 @@
     w.style.transformOrigin='top center';w.style.transform='scale('+sc+')';
   }
 
-  // ---- クリック委譲 ----
-  document.addEventListener('click',function(e){
-    var t=e.target.closest('[data-act]');if(!t)return;
+  // ---- 操作ボタン ----
+  function handleAction(e){
+    var t=e.currentTarget;
     var act=t.dataset.act;
     if(act==='pref')cyclePref(parseInt(t.dataset.d));
     else if(act==='time')openWheel(parseInt(t.dataset.d));
@@ -406,10 +481,15 @@
     else if(act==='fit')toggleFit();
     else if(act==='add-special')addSpecial();
     else if(act==='special-date')openSpecialWheel(parseInt(t.dataset.index));
+    else if(act==='special-store')setSpecialStore(parseInt(t.dataset.index),t.dataset.store);
     else if(act==='remove-special')removeSpecial(parseInt(t.dataset.index));
-  });
+  }
+  function bindActions(root){
+    var items=(root||document).querySelectorAll('[data-act]');
+    for(var i=0;i<items.length;i++){if(items[i].dataset.bound)continue;items[i].dataset.bound='1';items[i].addEventListener('click',handleAction);}
+  }
 
-  renderCal();renderSpecial();
+  renderCal();renderSpecial();bindActions(document);
 })();
 </script>
 </body>
