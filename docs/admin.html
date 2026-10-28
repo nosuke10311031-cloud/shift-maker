@@ -203,7 +203,11 @@
   .tp-btn.has{color:var(--accent);font-weight:700;border-color:var(--accent)}
   .tp-btn:disabled{background:#efece5;color:#c2bcb1;cursor:default}
   .tp-ov{position:fixed;inset:0;z-index:999;background:rgba(20,16,12,.18)}
-  .busy-ov{position:fixed;inset:0;z-index:1100;background:rgba(20,16,12,.28);display:flex;align-items:center;justify-content:center;cursor:progress}
+  .cloud-share{border:1px solid var(--line,#e5ddd0);border-radius:12px;padding:12px;margin-bottom:12px}
+.cloud-share h3{font-size:15px;margin:0 0 8px}
+.cloud-share details,.legacy-share{margin-top:10px}
+.legacy-share>summary{cursor:pointer;font-size:13px}
+.busy-ov{position:fixed;inset:0;z-index:1100;background:rgba(20,16,12,.28);display:flex;align-items:center;justify-content:center;cursor:progress}
   .busy-box{background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(43,39,36,.28);padding:16px 22px;font-size:14px;font-weight:700}
   .tp-pop{position:fixed;z-index:1000;background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(43,39,36,.28);padding:14px;width:min(300px,92vw)}
   .tp-ttl{font-size:12px;color:var(--muted);margin-bottom:10px;text-align:center}
@@ -300,6 +304,7 @@
 <body>
 <div id="root"></div>
 <script src="schedule-v4.js"></script>
+<script src="share-cloud.js"></script>
 <script type="text/babel">
 const {useState,useEffect,useMemo,useRef,useLayoutEffect} = React;
 const STORE_PREFIX='shiftmaker_v4_';
@@ -830,6 +835,8 @@ function assignWorkTimes(state, mode){
 }
 
 const DEFAULT_VIEWER_URL='https://nosuke10311031-cloud.github.io/shift-maker/view.html';
+const CLOUD_KEY='shiftmaker_cloud_v1';
+const PRE_RESTORE_PREFIX='shiftmaker_prerestore_v4_';
 function App(){
   const [s,setS]=useState(()=>{
     const saved=store.load();
@@ -1628,7 +1635,12 @@ function AppV4(){
   const [externalChange,setExternalChange]=useState(false);
   const latestS=useRef(null);latestS.current=s;
   const [viewerUrl,setViewerUrl]=useState(()=>{try{return localStorage.getItem('shiftmaker_viewer_url')||DEFAULT_VIEWER_URL;}catch(e){return DEFAULT_VIEWER_URL;}});
-  const qrMidori=useRef(null),qrRiki=useRef(null);
+  const qrMidori=useRef(null),qrRiki=useRef(null),qrCloud=useRef(null);
+  const [cloud,setCloudState]=useState(()=>{try{const v=JSON.parse(localStorage.getItem(CLOUD_KEY)||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{};}catch(e){return {};}});
+  const [cloudBusy,setCloudBusy]=useState('');
+  const [cloudMsg,setCloudMsg]=useState(null);
+  const [tokenDraft,setTokenDraft]=useState('');
+  const [restoreDraft,setRestoreDraft]=useState('');
   const dim=daysInMonth(s.year,s.month);
   const days=useMemo(()=>{const a=[],holidays=japaneseHolidays(s.year);for(let d=1;d<=daysInMonth(s.year,s.month);d++){const dow=new Date(s.year,s.month-1,d).getDay(),holiday=holidays[dateKey(s.year,s.month,d)]||'';a.push({d,dow,holiday,we:isWeekend(dow)||!!holiday});}return a;},[s.year,s.month]);
   const first=new Date(s.year,s.month-1,1).getDay(),calendarCells=[...Array(first).fill(null),...days];while(calendarCells.length%7)calendarCells.push(null);
@@ -1914,14 +1926,96 @@ function AppV4(){
   };
 
   const buildLink=(code)=>{try{const url=new URL(viewerUrl,location.href);url.hash='';url.searchParams.set('shift',code.replace(/-/g,'_'));return url.toString();}catch(e){return '';}};
-  const buildShareV4=(id)=>{
-    const x=s.stores[id],members=targetMembers(id);if(!members.length){alert(`${STORE_LABEL[id]}の対象メンバーがいません。`);return;}if(members.length>PACK_CHARS.length){alert('共有は64人まで対応しています。');return;}
-    const invalid=days.some(day=>s.members.some(m=>isIn(id,day.d,m.id)&&!x.targets[m.id]));if(invalid){alert('対象外メンバーの勤務が残っています。対象設定を修正してください。');return;}
+  // 店舗の共有データ（z4形式）を作る。共有リンクと鍵付き公開で同じ内容を使う。
+  const shareDataV4=(id)=>{
+    const x=s.stores[id],members=targetMembers(id);if(!members.length)return {error:`${STORE_LABEL[id]}の対象メンバーがいません。`};if(members.length>PACK_CHARS.length)return {error:'共有は64人まで対応しています。'};
+    const invalid=days.some(day=>s.members.some(m=>isIn(id,day.d,m.id)&&!x.targets[m.id]));if(invalid)return {error:`${STORE_LABEL[id]}に対象外メンバーの勤務が残っています。対象設定を修正してください。`};
     const idx={};members.forEach((m,i)=>idx[m.id]=i);const C={z:4,g:meta.shareGroupId,s:id,r:s.dataRevision[id]||0,u:Date.now(),y:s.year,m:s.month,n:members.map(m=>m.name),a:[],t:[],p:[],v:[],d:'',h:days.filter(x=>x.holiday).map(x=>x.d)};
     C.d=days.map(day=>packSmall(demand(id,day))).join('');days.forEach(day=>{C.a[day.d-1]=members.filter(m=>isIn(id,day.d,m.id)).map(m=>packSmall(idx[m.id])).join('');});members.forEach((m,i)=>{C.p[i]=days.map(day=>packSharePref(getPref(m.id,day.d))).join('').replace(/0+$/,'');const av=[],wt=[];days.forEach(day=>{const a=getAvail(m.id,day.d),t=x.times[`${m.id}-${day.d}`];if(a)av.push(packShareDayTime(day.d,a));if(isIn(id,day.d,m.id)&&t)wt.push(packShareDayTime(day.d,t));});if(av.length)C.v[i]=av.join('');if(wt.length)C.t[i]=wt.join('');});
+    return {C};
+  };
+  const buildShareV4=(id)=>{
+    const built=shareDataV4(id);if(built.error){alert(built.error);return;}const C=built.C;
     const code=LZString.compressToEncodedURIComponent(JSON.stringify(C)),rawLink=(()=>{try{const url=new URL(viewerUrl,location.href);url.hash='';url.searchParams.set('shift',code);return url.toString();}catch(e){return '';}})(),link=buildLink(code);setShareOut(prev=>({...prev,[id]:{code,link,rawLink}}));setS(prev=>({...prev,sharedRevision:{...prev.sharedRevision,[id]:prev.dataRevision[id]||0}}));
   };
   const copyText=(text)=>{if(navigator.clipboard&&text)navigator.clipboard.writeText(text);};
+  // 鍵とトークンはこの端末のブラウザにだけ保存する。保存できない場合は公開を始めない。
+  const saveCloud=(next)=>{try{localStorage.setItem(CLOUD_KEY,JSON.stringify(next));setCloudState(next);return true;}catch(e){setCloudMsg({ok:false,text:'この端末に公開設定を保存できませんでした。ブラウザの保存設定を確認してください。'});return false;}};
+  const cloudReady=!!window.ShiftCloud,cloudShareUrl=cloudReady&&cloud.viewKey?window.ShiftCloud.shareUrl(viewerUrl,cloud.viewKey):'';
+  const restoreCode=cloud.viewKey&&cloud.backupKey?cloud.viewKey+cloud.backupKey:'';
+  useEffect(()=>{
+    const el=qrCloud.current;if(!el)return;el.innerHTML='';
+    if(!cloudShareUrl||typeof window.QRCode==='undefined')return;
+    try{new window.QRCode(el,{text:cloudShareUrl,width:160,height:160,colorDark:'#000',colorLight:'#fff',correctLevel:window.QRCode.CorrectLevel.M});}catch(e){}
+  },[cloudShareUrl]);
+  const cloudYm=monthKey(s.year,s.month),cloudPublished=(cloud.published||{})[cloudYm];
+  const cloudStale=!!cloudPublished&&STORE_IDS.some(id=>(cloudPublished.rev||{})[id]!==(s.dataRevision[id]||0));
+  const formatTime=(iso)=>{const d=new Date(iso);return isNaN(d)?'':`${d.getMonth()+1}月${d.getDate()}日 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;};
+  const saveToken=async()=>{
+    const token=tokenDraft.trim();if(!token||cloudBusy)return;
+    setCloudBusy('トークンを確認しています…');setCloudMsg(null);
+    try{await window.ShiftCloud.checkSetup({token});if(saveCloud({...cloud,token}))setCloudMsg({ok:true,text:'トークンを確認して、この端末に保存しました。'});setTokenDraft('');}
+    catch(e){setCloudMsg({ok:false,text:e.message});}
+    finally{setCloudBusy('');}
+  };
+  const publishCloud=async()=>{
+    if(cloudBusy||!cloud.token)return;
+    if(externalChange){setCloudMsg({ok:false,text:'別のタブでこの月が更新されています。再読み込みしてから公開してください。'});return;}
+    const stores={};
+    for(const id of STORE_IDS){if(!targetMembers(id).length)continue;const built=shareDataV4(id);if(built.error){setCloudMsg({ok:false,text:built.error});return;}stores[id]=built.C;}
+    if(!Object.keys(stores).length){setCloudMsg({ok:false,text:'対象メンバーがいないため公開できません。'});return;}
+    const first=!cloud.viewKey,viewKey=cloud.viewKey||window.ShiftCloud.randomKey(),backupKey=cloud.backupKey||window.ShiftCloud.randomKey();
+    // 鍵は通信の前に保存し、途中で失敗しても同じURLのまま再公開できるようにする。
+    if(first&&!saveCloud({...cloud,viewKey,backupKey}))return;
+    const period=s,ym=monthKey(period.year,period.month);
+    setCloudBusy(`${period.year}年${period.month}月を公開しています…`);setCloudMsg(null);
+    try{
+      const res=await window.ShiftCloud.publishMonth({token:cloud.token},{viewKey,backupKey,ym,stores,period});
+      const latest=(()=>{try{return JSON.parse(localStorage.getItem(CLOUD_KEY)||'{}');}catch(e){return {...cloud,viewKey,backupKey};}})();
+      saveCloud({...latest,viewKey,backupKey,published:{...(latest.published||{}),[ym]:{at:res.publishedAt,rev:{...period.dataRevision}}}});
+      setCloudMsg({ok:true,text:`${period.year}年${period.month}月を公開しました。${first?'下の共有URLをLINEで送ってください。':'共有URLは同じです。送り直す必要はありません。'}${latestS.current!==period?' 公開中に変更した分は、もう一度公開すると反映されます。':''}`});
+    }catch(e){setCloudMsg({ok:false,text:e.message+' シフトのデータは変更していません。'});}
+    finally{setCloudBusy('');}
+  };
+  const rotateCloudKey=async()=>{
+    if(cloudBusy||!cloud.token||!cloud.viewKey)return;
+    if(!confirm('共有URLの鍵を作り直します。今のURLではシフトを見られなくなり、新しいURLをLINEで送り直す必要があります。よろしいですか？'))return;
+    const newKey=window.ShiftCloud.randomKey();
+    setCloudBusy('鍵を作り直しています…');setCloudMsg(null);
+    try{
+      const count=await window.ShiftCloud.rotateViewKey({token:cloud.token},cloud.viewKey,newKey);
+      saveCloud({...cloud,viewKey:newKey});
+      setCloudMsg({ok:true,text:`鍵を作り直しました（公開済み${count}か月分を移しました）。新しい共有URLをLINEで送り直してください。復元用コードも新しくなったので保管し直してください。`});
+    }catch(e){setCloudMsg({ok:false,text:e.message+' 今の共有URLはそのまま使えます。'});}
+    finally{setCloudBusy('');}
+  };
+  // 公開データからこの月を復元する。今の内容は退避してから置き換え、版は巻き戻さず新しい版として採用する。
+  const restoreCloud=async()=>{
+    if(cloudBusy)return;
+    const code=(restoreDraft.trim()||restoreCode);
+    if(!code){setCloudMsg({ok:false,text:'復元用コードを入力してください。'});return;}
+    if(externalChange){setCloudMsg({ok:false,text:'別のタブでこの月が更新されています。再読み込みしてから復元してください。'});return;}
+    const backupKey=code.slice(22);
+    if(code.length!==44||!window.ShiftCloud.isKey(code.slice(0,22))||!window.ShiftCloud.isKey(backupKey)){setCloudMsg({ok:false,text:'復元用コードが正しくありません（英数字44文字）。'});return;}
+    const ym=monthKey(s.year,s.month);
+    setCloudBusy('公開データを読み込んでいます…');setCloudMsg(null);
+    let data;
+    try{data=await window.ShiftCloud.loadBackup({},backupKey,ym);}
+    catch(e){setCloudBusy('');setCloudMsg({ok:false,text:e.message});return;}
+    setCloudBusy('');
+    if(!data||!data.period){setCloudMsg({ok:false,text:`${s.year}年${s.month}月の公開データはありません。`});return;}
+    const checked=inspectSavedPeriod({state:'ok',key:STORE_PREFIX+ym,value:data.period},s.year,s.month);
+    if(checked.state!=='ok'){setCloudMsg({ok:false,text:`公開データを復元できません（${checked.error}）。`});return;}
+    const restored=normalizePeriodV4(data.period),work=STORE_IDS.reduce((n,id)=>n+Object.values(restored.stores[id].placed).reduce((k,row)=>k+Object.values(row||{}).filter(Boolean).length,0),0);
+    if(!confirm(`${s.year}年${s.month}月を、${formatTime(data.publishedAt)}に公開した内容（メンバー${restored.members.length}人・勤務${work}件）に置き換えます。\n今のこの月の内容は、この端末に退避してから置き換えます。よろしいですか？`))return;
+    try{const raw=localStorage.getItem(STORE_PREFIX+ym);localStorage.setItem(PRE_RESTORE_PREFIX+ym,raw!=null?raw:JSON.stringify(latestS.current));}
+    catch(e){setCloudMsg({ok:false,text:'今の内容を退避できなかったため、復元を中止しました。'});return;}
+    const current=latestS.current,dataRevision={};STORE_IDS.forEach(id=>{dataRevision[id]=Math.max(current.dataRevision[id]||0,restored.dataRevision[id]||0)+1;});
+    // 新しい端末で復元したときは、復元用コードの鍵を引き継いで同じ共有URLで公開を続けられるようにする。
+    if(restoreDraft.trim()&&!cloud.viewKey)saveCloud({...cloud,viewKey:code.slice(0,22),backupKey});
+    setStorageBlock('');setS({...restored,dataRevision,sharedRevision:{midori:-1,riki:-1}});setShareOut({midori:null,riki:null});setAutoSignatures({all:'',midori:'',riki:''});setRestoreDraft('');
+    setCloudMsg({ok:true,text:`${s.year}年${s.month}月を公開データから復元しました。元の内容は端末内に退避しています。`});
+  };
   const saveQr=(id)=>{const box=id==='midori'?qrMidori.current:qrRiki.current,src=box&&(box.querySelector('canvas')||box.querySelector('img'));if(!src)return;const a=document.createElement('a');a.href=src.tagName==='CANVAS'?src.toDataURL('image/png'):src.src;a.download=`shift-${id}-${s.year}-${String(s.month).padStart(2,'0')}-qr.png`;a.click();};
 
   const renderPlans=(id)=>{const x=s.stores[id],conflicts=closedConflicts(id);return <div><div className="row" style={{justifyContent:'space-between',alignItems:'center'}}><h3 style={{fontSize:15,marginBottom:6}}>{STORE_LABEL[id]}の募集時刻・人数</h3><button className="btn ghost sm" onClick={()=>openClosedDays(id)}>店休日を設定（{Object.keys(x.closedDays||{}).length}日）</button></div><div className="plan-grid">{PLAN_TYPES.map(type=><section className="plan-block" key={type}><div className="plan-head"><div className="plan-title">{PLAN_LABELS[type]}</div><div className="plan-total">合計 {workPlanTotal(x.workPlans[type])}名</div></div>{!x.workPlans[type].length&&<div className="plan-empty">募集枠なし</div>}{x.workPlans[type].map((row,index)=><div className="plan-row" key={row.time+'-'+index}><TimePicker value={row.time} minHour={15} allowClear={false} onChange={v=>setPlanTimeV4(id,type,index,v)}/><input className="plan-count" type="number" min="0" value={row.count} onWheel={e=>e.currentTarget.blur()} onChange={e=>setPlanCountV4(id,type,index,e.target.value)}/><button className="plan-del" onClick={()=>removePlanV4(id,type,index)}>×</button></div>)}<button className="plan-add" onClick={()=>addPlanV4(id,type)}>＋ 時間を追加</button></section>)}</div>{conflicts.length>0&&<div className="closed-note">店休日に勤務が{conflicts.length}件残っています。自動作成と手動配置を止めています。 <button className="btn sm ghost" onClick={()=>repairClosedDays(id)}>矛盾を修正</button></div>}{planMsg&&planMsg.id===id&&<div className={'imp-msg '+(planMsg.ok?'imp-ok':'imp-ng')}>{planMsg.text}</div>}</div>;};
@@ -2006,7 +2100,20 @@ function AppV4(){
       </table></div>
       <div className="hint">希望合計は ◯・◎=1.0、△=0.5 で計算。エラーは確認用の警告で、自動作成や共有を止めません。採用は両店舗のカレンダーを合算し、同じ日は1勤務として数えます。</div>
     </div>}
-    <div className="card"><h2><span className="num">6</span>シフトを共有する</h2><label className="fl">ビューアの公開URL<input value={viewerUrl} onChange={e=>setViewerUrl(e.target.value)} style={{width:'100%',maxWidth:520}}/></label>{STORE_IDS.map(id=>{const out=shareOut[id],stale=(s.sharedRevision[id]??-1)!==(s.dataRevision[id]||0);return <div className={'share-store '+id} key={id}><h3>{STORE_LABEL[id]}用</h3><button className="btn accent sm" onClick={()=>buildShareV4(id)}>{STORE_LABEL[id]}の共有リンクを作成</button>{stale&&s.sharedRevision[id]>=0&&<div className="plan-note">シフト変更後のため、以前の共有リンクは古くなっています。</div>}{out&&<div><div className="hint">共有リンク（{out.link.length}文字）</div><div className="codebox">{out.link}</div><button className="btn sm" onClick={()=>copyText(out.link)}>リンクをコピー</button>{out.link.length>2400&&<div className="warn">URLが長いため、一部環境では開きにくい可能性があります。</div>}<details><summary>共有コード</summary><div className="codebox">{out.code}</div><button className="btn sm" onClick={()=>copyText(out.code)}>コードをコピー</button></details><div className="qrwrap"><div className="qrbox" ref={id==='midori'?qrMidori:qrRiki}></div><button className="btn sm" onClick={()=>saveQr(id)}>QR画像を保存</button></div></div>}</div>;})}</div>
+    <div className="card"><h2><span className="num">6</span>シフトを共有する</h2>
+      <div className="cloud-share"><h3>鍵付き共有URL（両店舗まとめて・おすすめ）</h3>
+        {!cloudReady?<div className="warn">鍵付き共有の機能を読み込めませんでした。ページを再読み込みしてください。</div>:!cloud.token?<div><div className="hint">最初に一度だけ、GitHubで発行した書き込み用トークンをこの端末に保存してください。保存先：{window.ShiftCloud.DATA_REPO}</div><div className="row"><input type="password" autoComplete="off" value={tokenDraft} onChange={e=>setTokenDraft(e.target.value)} placeholder="github_pat_ で始まるトークン" style={{flex:'1 1 260px'}}/><button className="btn accent sm" disabled={!tokenDraft.trim()||!!cloudBusy} onClick={saveToken}>確認して保存</button></div></div>:<div>
+          <div className="row"><button className="btn accent" disabled={!!cloudBusy} onClick={publishCloud}>{s.year}年{s.month}月を公開{cloudPublished?'（更新）':''}</button>{cloudPublished&&<span className="hint" style={{margin:0}}>前回の公開：{formatTime(cloudPublished.at)}</span>}</div>
+          {cloudStale&&<div className="plan-note">公開後にシフトを変更しています。もう一度「公開」を押すと、同じURLの内容が更新されます。</div>}
+          {cloudShareUrl&&<div><div className="hint">共有URL（{cloudShareUrl.length}文字）。毎月同じURLで、公開した月を切り替えて見られます。</div><div className="codebox">{cloudShareUrl}</div><div className="row"><button className="btn sm" onClick={()=>copyText(cloudShareUrl)}>URLをコピー</button></div><div className="qrwrap"><div className="qrbox" ref={qrCloud}></div></div></div>}
+          {restoreCode&&<details><summary>復元用コード（大切に保管）</summary><div className="hint">この端末のデータが消えたときに、公開した内容から管理画面のシフトを戻すためのコードです。LINEのKeepメモなど、本人だけが見られる場所に保管してください。スタッフには送らないでください。</div><div className="codebox">{restoreCode}</div><button className="btn sm" onClick={()=>copyText(restoreCode)}>コードをコピー</button></details>}
+          <details><summary>公開設定</summary><div className="row" style={{marginTop:6}}><button className="btn ghost sm" disabled={!!cloudBusy} onClick={()=>{if(confirm('この端末に保存したトークンを削除しますか？（鍵と共有URLは残ります）'))saveCloud({...cloud,token:''});}}>トークンを入れ直す</button>{cloud.viewKey&&<button className="btn ghost sm" disabled={!!cloudBusy} onClick={rotateCloudKey}>共有URLの鍵を作り直す</button>}</div></details>
+        </div>}
+        {cloudReady&&<details><summary>公開データからこの月を復元</summary><div className="hint">{s.year}年{s.month}月を、最後に公開した内容に戻します。今の内容は端末内に退避してから置き換えます。別の端末で復元するときは復元用コードを入力してください。</div><div className="row"><input value={restoreDraft} onChange={e=>setRestoreDraft(e.target.value)} placeholder={restoreCode?'この端末の復元用コードを使用（入力不要）':'復元用コード（英数字44文字）'} style={{flex:'1 1 260px'}}/><button className="btn ghost sm" disabled={!!cloudBusy||(!restoreDraft.trim()&&!restoreCode)} onClick={restoreCloud}>この月を復元</button></div></details>}
+        {cloudBusy&&<div className="hint">{cloudBusy}</div>}
+        {cloudMsg&&<div className={'imp-msg '+(cloudMsg.ok?'imp-ok':'imp-ng')}>{cloudMsg.text}</div>}
+      </div>
+      <details className="legacy-share"><summary>従来の共有リンク（店舗ごと・長いURL）</summary><label className="fl">ビューアの公開URL<input value={viewerUrl} onChange={e=>setViewerUrl(e.target.value)} style={{width:'100%',maxWidth:520}}/></label>{STORE_IDS.map(id=>{const out=shareOut[id],stale=(s.sharedRevision[id]??-1)!==(s.dataRevision[id]||0);return <div className={'share-store '+id} key={id}><h3>{STORE_LABEL[id]}用</h3><button className="btn accent sm" onClick={()=>buildShareV4(id)}>{STORE_LABEL[id]}の共有リンクを作成</button>{stale&&s.sharedRevision[id]>=0&&<div className="plan-note">シフト変更後のため、以前の共有リンクは古くなっています。</div>}{out&&<div><div className="hint">共有リンク（{out.link.length}文字）</div><div className="codebox">{out.link}</div><button className="btn sm" onClick={()=>copyText(out.link)}>リンクをコピー</button>{out.link.length>2400&&<div className="warn">URLが長いため、一部環境では開きにくい可能性があります。</div>}<details><summary>共有コード</summary><div className="codebox">{out.code}</div><button className="btn sm" onClick={()=>copyText(out.code)}>コードをコピー</button></details><div className="qrwrap"><div className="qrbox" ref={id==='midori'?qrMidori:qrRiki}></div><button className="btn sm" onClick={()=>saveQr(id)}>QR画像を保存</button></div></div>}</div>;})}</details></div>
     {targetOpen&&<><div className="tp-ov" onClick={()=>setTargetOpen(false)}></div><div className="target-panel"><h3>{activeTab==='all'?'店舗対象メンバー':STORE_LABEL[activeTab]+'の対象メンバー'}</h3><div className="hint">自動作成と店舗別共有に含める人を選びます。勤務が残っている店舗のチェックは外せません。</div>{activeTab==='all'?<div className="target-list"><div className="target-store-head"><b>メンバー</b><b>みどり</b><b>リキ</b></div>{s.members.map(m=><div className="target-item dual" key={m.id}><span>{m.name}</span>{STORE_IDS.map(id=>{const assigned=days.some(x=>isIn(id,x.d,m.id));return <label key={id} title={assigned?'勤務あり・OFF不可':''}><input type="checkbox" checked={!!s.stores[id].targets[m.id]} onChange={e=>toggleTarget(id,m.id,e.target.checked)}/><span>{assigned?'勤務あり':STORE_LABEL[id]}</span></label>;})}</div>)}</div>:<div className="target-list">{s.members.map(m=>{const assigned=days.some(x=>isIn(activeTab,x.d,m.id));return <label className="target-item" key={m.id}><input type="checkbox" checked={!!s.stores[activeTab].targets[m.id]} onChange={e=>toggleTarget(activeTab,m.id,e.target.checked)}/><span>{m.name}</span>{assigned&&<span className="reason">勤務あり・OFF不可</span>}</label>;})}</div>}<div className="modal-actions"><button className="btn accent" onClick={()=>setTargetOpen(false)}>完了</button></div></div></>}
     {closedDraft&&<><div className="tp-ov" onClick={()=>setClosedDraft(null)}></div><div className="target-panel"><h3>{STORE_LABEL[closedDraft.id]}の店休日</h3><div className="hint">休みにする日を複数選び、「保存」を押してください。祝日とは別の設定です。</div><div className="closed-grid">{WD.map(w=><div className="weekday" key={w}>{w}</div>)}{Array.from({length:new Date(s.year,s.month-1,1).getDay()},(_,i)=><span key={'blank'+i}></span>)}{days.map(day=><label className={'closed-day-choice'+(closedDraft.selected[day.d]?' on':'')} key={day.d}><input type="checkbox" checked={!!closedDraft.selected[day.d]} onChange={()=>toggleClosedDraft(day.d)}/><span>{day.d}</span></label>)}</div><div className="modal-actions"><button className="btn ghost" onClick={()=>setClosedDraft(null)}>キャンセル</button><button className="btn accent" onClick={applyClosedDays}>保存</button></div></div></>}
     {clearDialog&&<><div className="tp-ov" onClick={()=>setClearDialog(null)}></div><div className="target-panel" style={{inset:'auto max(12px,calc((100vw - 520px)/2)) 20vh'}}><h3>特別勤務をどうしますか？</h3><div className="hint">対象となる特別勤務が{clearDialog.count}件あります。特別勤務希望日の情報と選択済み店舗は、どちらを選んでも残ります。</div><div className="modal-actions"><button className="btn ghost" onClick={()=>applyClear(clearDialog.id,clearDialog.mode,true)}>特別勤務を残してクリア</button><button className="btn accent" onClick={()=>applyClear(clearDialog.id,clearDialog.mode,false)}>特別勤務の勤務採用も解除</button><button className="btn ghost" onClick={()=>setClearDialog(null)}>キャンセル</button></div></div></>}
