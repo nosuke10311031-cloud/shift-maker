@@ -83,7 +83,7 @@ function copy(value){return JSON.parse(JSON.stringify(value));}
   assert.equal(data.stores.midori.placed[1].a,true);
 }
 
-// 希望店舗が店休日の特別勤務は希望を残し、別店舗へ自動移動しない。
+// 特別勤務希望日は確定と同じ扱いのため、店休日で未採用でも別店舗へ自動で入れない。
 {
   const data=input({members:[member('a')],prefs:{a:{1:'◯'}},specialPrefs:{a:{1:'midori'}},stores:{midori:store({a:true}),riki:store({a:true})}});
   data.stores.midori.closedDays[1]=true;
@@ -91,7 +91,6 @@ function copy(value){return JSON.parse(JSON.stringify(value));}
   assert.equal(result.ok,true);
   assert.equal(assigned(result,'midori',1).length,0);
   assert.equal(assigned(result,'riki',1).length,0);
-  assert.ok(result.warnings.some(x=>x.includes('店休日')));
 }
 
 // 確定済み勤務は作り直しでも保持する。
@@ -130,14 +129,26 @@ function copy(value){return JSON.parse(JSON.stringify(value));}
   assert.equal(result.stores.riki.timeSlots['a-1'],'18:00');
 }
 
-// 未採用の非社員特別勤務は、再作成時に希望店舗と開始時刻・対応枠をまとめて決める。
+// 採用中で時刻が空の特別勤務は、勤務を残したまま開始時刻・対応枠だけ補う。
 {
   const data=input({members:[member('a')],prefs:{a:{1:'◯'}},availFrom:{a:{1:'19:00'}},specialPrefs:{a:{1:'midori'}},stores:{midori:store({a:true}),riki:store({a:true},[])}});
+  data.stores.midori.placed[1]={a:true};
   const result=solver.solve(data,{mode:'unconfirmed',attempts:20,random:rng(11)});
   assert.equal(result.ok,true);
   assert.deepEqual(assigned(result,'midori',1),['a']);
   assert.equal(result.stores.midori.times['a-1'],'19:00');
   assert.equal(result.stores.midori.timeSlots['a-1'],'18:00');
+}
+
+// 手動で外した特別勤務（未採用）は、作り直しでも自動で戻さない。
+{
+  const data=input({members:[member('a')],prefs:{a:{1:'◯'}},specialPrefs:{a:{1:'midori'}},stores:{midori:store({a:true}),riki:store({a:true})}});
+  for(const mode of ['remaining','unconfirmed']){
+    const result=solver.solve(data,{mode,attempts:20,random:rng(12)});
+    assert.equal(result.ok,true);
+    assert.deepEqual(assigned(result,'midori',1),[]);
+    assert.deepEqual(assigned(result,'riki',1),[]);
+  }
 }
 
 // 残り作成では、時刻だけ空の既存未確定勤務を保持しながら補完する。
@@ -279,17 +290,18 @@ function copy(value){return JSON.parse(JSON.stringify(value));}
   });
 }
 
-// 取込時に了承した特別勤務が最大日数・連勤を超えていても、作り直し全体を失敗させない。
+// 取込時に了承した特別勤務が最大日数・連勤を超えていても、作り直し全体を失敗させず残す。
 {
   const days=[1,2,3].map(d=>({d,dow:d,holiday:'',we:false}));
   const members=[member('sp',{maxDays:1,noConsec:2})];
   const data=input({days,members,prefs:{sp:{1:'◯',2:'◯',3:'◯'}},specialPrefs:{sp:{1:'midori',2:'midori'}},stores:{midori:store({sp:true}),riki:store({},[])}});
+  data.stores.midori.placed={1:{sp:true},2:{sp:true}};
   const result=solver.solve(data,{scope:['midori'],mode:'unconfirmed',attempts:20,random:rng(201)});
   assert.equal(result.ok,true);
   assert.deepEqual([1,2,3].map(d=>assigned(result,'midori',d).length),[1,1,0]);
 }
 
-// 確定済み・対象外の特別勤務希望は未採用として警告し、他の作成は続ける。
+// 未採用の特別勤務希望日は確定・対象外にかかわらず自動で入れず、他の人で作成を続ける。
 {
   const days=[1,2].map(d=>({d,dow:d,holiday:'',we:false}));
   const members=[member('c'),member('t'),member('o')];
@@ -299,33 +311,29 @@ function copy(value){return JSON.parse(JSON.stringify(value));}
   assert.equal(result.ok,true);
   assert.deepEqual(assigned(result,'midori',1),['o']);
   assert.deepEqual(assigned(result,'midori',2),['o']);
-  assert.equal(result.warnings.length,2);
+  assert.equal(result.warnings.length,0);
 }
 
-// 作り直しで「固定」した特別勤務は残し、「変更」した特別勤務は普通の◯の日として扱う。
+// 特別勤務希望日は両店舗とも確定と同じ扱い。採用中は募集0人でも外さず、未採用の日は他店舗へも入れない。
 {
   const days=[1,2].map(d=>({d,dow:d,holiday:'',we:false}));
-  const members=[member('fixed'),member('changed')];
-  const make=()=>{
-    const data=input({days,members,prefs:{fixed:{1:'◯'},changed:{1:'◯',2:'◯'}},specialPrefs:{fixed:{1:'midori'},changed:{1:'midori',2:'midori'}},stores:{midori:store({fixed:true,changed:true},[{time:'18:00',count:0}]),riki:store({},[])}});
-    data.stores.midori.placed={1:{fixed:true,changed:true}};data.stores.midori.times={'fixed-1':'18:00','changed-1':'18:00'};
-    return data;
-  };
-  // 募集0人の日なので、特別勤務として残らない限り誰も入らない。
-  const kept=solver.solve(make(),{scope:['midori'],mode:'unconfirmed',attempts:20,random:rng(203)});
-  assert.equal(kept.ok,true);
-  assert.deepEqual(assigned(kept,'midori',1).sort(),['changed','fixed']);
-  assert.deepEqual(assigned(kept,'midori',2),['changed']);
-  const data=make();data.specialRelease={changed:{1:true,2:true}};
-  const released=solver.solve(data,{scope:['midori'],mode:'unconfirmed',attempts:20,random:rng(204)});
-  assert.equal(released.ok,true);
-  assert.deepEqual(assigned(released,'midori',1),['fixed']);
-  assert.deepEqual(assigned(released,'midori',2),[]);
-  assert.equal(released.stores.midori.times['fixed-1'],'18:00');
-  assert.deepEqual(data.specialPrefs.changed,{1:'midori',2:'midori'});
-  // 「残り」の作成では既存勤務を全部残すため、変更の指定は使わない。
-  const remaining=solver.solve(data,{scope:['midori'],mode:'remaining',attempts:20,random:rng(205)});
-  assert.deepEqual(assigned(remaining,'midori',1).sort(),['changed','fixed']);
+  const members=[member('sp'),member('o')];
+  const data=input({days,members,prefs:{sp:{1:'◯',2:'◯'},o:{1:'◯',2:'×'}},specialPrefs:{sp:{1:'midori',2:'midori'}},stores:{midori:store({sp:true,o:true},[{time:'18:00',count:0}]),riki:store({sp:true},[{time:'18:00',count:1}])}});
+  data.stores.midori.placed={1:{sp:true}};data.stores.midori.times={'sp-1':'18:00'};
+  for(const mode of ['remaining','unconfirmed']){
+    const result=solver.solve(data,{mode,attempts:20,random:rng(203)});
+    assert.equal(result.ok,true);
+    assert.deepEqual(assigned(result,'midori',1),['sp']);
+    assert.equal(result.stores.midori.times['sp-1'],'18:00');
+    assert.deepEqual(assigned(result,'riki',2),[]);
+    assert.deepEqual(assigned(result,'midori',2),[]);
+  }
+  // 独立検査は、特別勤務希望日への自動追加と自動削除を検出する。
+  const ok=solver.solve(data,{mode:'unconfirmed',attempts:20,random:rng(204)});
+  const added=copy(ok.stores);added.riki.placed[2]={sp:true};added.riki.times['sp-2']='18:00';
+  assert.ok(solver.validate(data,{stores:added,autoKeys:new Set(['riki|2|sp']),filledTimeKeys:new Set()},['midori','riki'],'unconfirmed').some(e=>e.indexOf('特別勤務希望日の勤務が変更')>=0));
+  const removed=copy(ok.stores);removed.midori.placed[1]={};
+  assert.ok(solver.validate(data,{stores:removed,autoKeys:new Set(),filledTimeKeys:new Set()},['midori','riki'],'unconfirmed').some(e=>e.indexOf('特別勤務希望日の勤務が変更')>=0));
 }
 
 // ×の日に残した希望開始時刻は、既存勤務の開始時刻補完に使わない。

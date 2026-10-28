@@ -61,15 +61,11 @@
     return Math.max(requiredMin,available||requiredMin);
   }
   function prefOf(input,mid,d){return (input.prefs&&input.prefs[mid]&&input.prefs[mid][d])||'×';}
-  // 確定以外の作り直しで管理者が「変更」を選んだ特別勤務希望日は、普通の◯の日として扱う。
-  function specialReleased(input,mid,d){return !!(input.specialRelease&&input.specialRelease[mid]&&input.specialRelease[mid][d]);}
+  // 特別勤務希望日は、その人のその日を両店舗とも確定と同じく扱う。自動作成は勤務を足しも外しもせず、手動でだけ変更できる。
+  function hasSpecial(input,mid,d){return !!(input.specialPrefs&&input.specialPrefs[mid]&&input.specialPrefs[mid][d]);}
   function confirmed(store,d,mid){return !!((store.confM&&store.confM[mid])||(store.confD&&store.confD[d]));}
   function assignmentKey(storeId,d,mid){return storeId+'|'+d+'|'+mid;}
   function parseAssignmentKey(key){var p=String(key).split('|');return {storeId:p[0],d:parseInt(p[1]),mid:p.slice(2).join('|')};}
-  function specialActualStore(input,mid,d){
-    var found=STORE_IDS.filter(function(id){return isIn(input.stores,id,d,mid);});
-    return found.length===1?found[0]:'';
-  }
   function earliestPlanTime(store,day){
     var rows=(store.workPlans&&store.workPlans[planType(day)])||[],values=rows.map(function(row){return String(row.time||'');}).filter(Boolean);
     values.sort(function(a,b){return timeToMinutes(a)-timeToMinutes(b);});
@@ -77,7 +73,7 @@
   }
 
   function prepareBase(input,scope,mode){
-    var stores=clone(input.stores),scopeSet=new Set(scope),fixed=new Set(),warnings=[],addedSpecialKeys=new Set();
+    var stores=clone(input.stores),scopeSet=new Set(scope),fixed=new Set(),warnings=[];
     STORE_IDS.forEach(function(id){
       var store=stores[id];
       store.placed=store.placed||{};store.times=store.times||{};store.timeSlots=store.timeSlots||{};
@@ -85,8 +81,7 @@
         var placed={},times={},timeSlots={};
         input.days.forEach(function(day){
           input.members.forEach(function(member){
-            var actual=specialActualStore(input,member.id,day.d);
-            var keep=confirmed(store,day.d,member.id)||(actual===id&&input.specialPrefs&&input.specialPrefs[member.id]&&input.specialPrefs[member.id][day.d]&&!specialReleased(input,member.id,day.d));
+            var keep=confirmed(store,day.d,member.id)||hasSpecial(input,member.id,day.d);
             if(!isIn(stores,id,day.d,member.id)||!keep)return;
             if(!placed[day.d])placed[day.d]={};
             placed[day.d][member.id]=true;
@@ -99,34 +94,6 @@
       }
     });
 
-    // 実採用済みの特別勤務は上で実店舗ごと保持する。未採用だけ希望店舗へ加える。
-    if(mode==='unconfirmed'){
-      Object.keys(input.specialPrefs||{}).forEach(function(mid){
-        Object.keys(input.specialPrefs[mid]||{}).forEach(function(rawDay){
-          var d=parseInt(rawDay),storeId=input.specialPrefs[mid][rawDay];
-          if(!scopeSet.has(storeId)||specialReleased(input,mid,d))return;
-          if(isClosed(stores[storeId],d)){
-            warnings.push(d+'日の特別勤務希望は希望店舗が店休日のため未採用です。');
-            return;
-          }
-          if(worksOn(stores,d,mid))return;
-          // 確定済みの人・日へは特別勤務希望でも新しい勤務を加えない。対象外へ戻された店舗へも自動で戻さない。
-          if(confirmed(stores[storeId],d,mid)){
-            warnings.push(d+'日の特別勤務希望は希望店舗で確定済みの人・日のため未採用です。');
-            return;
-          }
-          if(!stores[storeId].targets||!stores[storeId].targets[mid]){
-            warnings.push(d+'日の特別勤務希望は希望店舗の対象メンバーではないため未採用です。');
-            return;
-          }
-          stores[storeId].placed[d]=Object.assign({},stores[storeId].placed[d]||{},Object.fromEntries([[mid,true]]));
-          addedSpecialKeys.add(assignmentKey(storeId,d,mid));
-          var member=input.members.find(function(x){return x.id===mid;});
-          if(member&&member.employee)stores[storeId].times[mid+'-'+d]='13:00';
-        });
-      });
-    }
-
     STORE_IDS.forEach(function(id){
       Object.keys(stores[id].placed||{}).forEach(function(rawDay){
         Object.keys(stores[id].placed[rawDay]||{}).forEach(function(mid){
@@ -134,7 +101,7 @@
         });
       });
     });
-    return {stores:stores,fixed:fixed,warnings:warnings,addedSpecialKeys:addedSpecialKeys};
+    return {stores:stores,fixed:fixed,warnings:warnings};
   }
 
   // 小さい日次グラフ用の最小費用最大流。最大人数を満たした上で費用を最小化する。
@@ -221,8 +188,7 @@
 
   function candidateEdge(input,stores,day,member,slot,allowTriangle,counts){
     var store=stores[slot.storeId],pref=prefOf(input,member.id,day.d);
-    var requested=input.specialPrefs&&input.specialPrefs[member.id]&&input.specialPrefs[member.id][day.d];
-    if(requested&&requested!==slot.storeId)return null;
+    if(hasSpecial(input,member.id,day.d))return null;
     if(!store.targets||!store.targets[member.id])return null;
     // 確定した人・日は、既存勤務だけでなく勤務の有無も確定済みとして扱う。
     if(confirmed(store,day.d,member.id))return null;
@@ -283,7 +249,7 @@
 
   function buildTrial(input,scope,mode,allowTriangle,random){
     var prep=prepareBase(input,scope,mode),stores=prep.stores,fixed=prep.fixed;
-    var autoKeys=new Set(prep.addedSpecialKeys),filledTimeKeys=new Set();
+    var autoKeys=new Set(),filledTimeKeys=new Set();
     // 先に同点順を乱し、実際に張れる候補辺が少ない日から安定して処理する。
     var order=input.days.map(function(day){return {day:day,tie:random()};}).sort(function(a,b){
       return daySlack(input,stores,a.day,scope,allowTriangle)-daySlack(input,stores,b.day,scope,allowTriangle)||(a.tie-b.tie);
@@ -421,19 +387,12 @@
       });});
     });
     Object.keys(input.specialPrefs||{}).forEach(function(mid){Object.keys(input.specialPrefs[mid]||{}).forEach(function(rawDay){
-      var d=parseInt(rawDay),requested=input.specialPrefs[mid][rawDay],actual=specialActualStore(input,mid,d),key=mid+'-'+d;
-      if(mode==='unconfirmed'&&specialReleased(input,mid,d))return;
-      if(actual&&scopeSet.has(actual)){
-        if(!isIn(stores,actual,d,mid))errors.push('実採用済みの特別勤務が変更されています。');
-        if(input.stores[actual].times[key]&&input.stores[actual].times[key]!==stores[actual].times[key])errors.push('実採用済みの特別勤務時刻が変更されています。');
-        if(input.stores[actual].timeSlots[key]&&input.stores[actual].timeSlots[key]!==stores[actual].timeSlots[key])errors.push('実採用済みの特別勤務枠が変更されています。');
-      }else if(!actual&&mode==='unconfirmed'&&scopeSet.has(requested)){
-        if(isClosed(stores[requested],d)){
-          if(worksOn(stores,d,mid))errors.push('店休日の特別勤務希望が別店舗へ自動移動しています。');
-        }else if(confirmed(input.stores[requested],d,mid)||!input.stores[requested].targets||!input.stores[requested].targets[mid]){
-          if(isIn(stores,requested,d,mid))errors.push('確定済みまたは対象外の特別勤務希望が自動採用されています。');
-        }else if(!isIn(stores,requested,d,mid))errors.push('営業日の特別勤務希望が採用されていません。');
-      }
+      var d=parseInt(rawDay),key=mid+'-'+d;
+      scope.forEach(function(id){
+        if(isIn(input.stores,id,d,mid)!==isIn(stores,id,d,mid))errors.push('特別勤務希望日の勤務が変更されています。');
+        if(input.stores[id].times[key]&&input.stores[id].times[key]!==stores[id].times[key])errors.push('特別勤務希望日の開始時刻が変更されています。');
+        if(input.stores[id].timeSlots[key]&&input.stores[id].timeSlots[key]!==stores[id].timeSlots[key])errors.push('特別勤務希望日の募集枠が変更されています。');
+      });
     });});
     input.members.forEach(function(member){
       var beforeCount=countDays(base,input.days,member.id),afterCount=countDays(stores,input.days,member.id);
