@@ -251,13 +251,12 @@
 
   function cyclePref(d){
     var cur=pref(d);var next=cur==='×'?'◯':cur==='◯'?'△':'×';
-    // ×の日は時刻を入力できないため、前に入れた希望開始時刻も一緒に消す。
-    if(next==='×'){delete S.prefs[d];delete S.avail[d];}else S.prefs[d]=next;
+    // ×にしても希望開始時刻は残す。×の間は表示せず、提出コードにも含めない。
+    if(next==='×')delete S.prefs[d];else S.prefs[d]=next;
     persist();renderCal();renderSpecial();
   }
   function fillAll(v){
     var n=dim(S.year,S.month);S.prefs={};
-    if(v==='×')S.avail={};
     if(v!=='×'){for(var d=1;d<=n;d++)S.prefs[d]=v;}
     persist();renderCal();renderSpecial();
   }

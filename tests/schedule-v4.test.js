@@ -302,4 +302,29 @@ function copy(value){return JSON.parse(JSON.stringify(value));}
   assert.equal(result.warnings.length,2);
 }
 
+// 管理者が「希望を優先」を選んだ対象外店舗の特別勤務は、その日だけ採用する。
+{
+  const days=[1,2].map(d=>({d,dow:d,holiday:'',we:false}));
+  const members=[member('t'),member('o')];
+  const data=input({days,members,prefs:{t:{1:'◯',2:'◯'},o:{1:'◯',2:'◯'}},specialPrefs:{t:{2:'midori'}},specialOverrides:{t:{2:true}},stores:{midori:store({o:true},[{time:'18:00',count:2}]),riki:store({},[])}});
+  data.specialOverrides={t:{2:true}};
+  const result=solver.solve(data,{scope:['midori'],mode:'unconfirmed',attempts:20,random:rng(203)});
+  assert.equal(result.ok,true);
+  assert.deepEqual(assigned(result,'midori',1),['o']);
+  assert.deepEqual(assigned(result,'midori',2).sort(),['o','t']);
+  assert.equal(result.stores.midori.targets.t,undefined);
+  assert.equal(result.warnings.length,0);
+}
+
+// ×の日に残した希望開始時刻は、既存勤務の開始時刻補完に使わない。
+{
+  const members=[member('x')];
+  const data=input({members,prefs:{x:{}},availFrom:{x:{1:'20:00'}},stores:{midori:store({x:true}),riki:store({},[])}});
+  data.stores.midori.placed={1:{x:true}};
+  const result=solver.solve(data,{scope:['midori'],mode:'remaining',attempts:20,random:rng(204)});
+  assert.equal(result.ok,true);
+  assert.equal(result.stores.midori.times['x-1'],'18:00');
+  assert.equal(data.availFrom.x[1],'20:00');
+}
+
 console.log('schedule-v4 tests: ok');

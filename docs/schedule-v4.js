@@ -61,6 +61,7 @@
     return Math.max(requiredMin,available||requiredMin);
   }
   function prefOf(input,mid,d){return (input.prefs&&input.prefs[mid]&&input.prefs[mid][d])||'×';}
+  function specialOverride(input,mid,d){return !!(input.specialOverrides&&input.specialOverrides[mid]&&input.specialOverrides[mid][d]);}
   function confirmed(store,d,mid){return !!((store.confM&&store.confM[mid])||(store.confD&&store.confD[d]));}
   function assignmentKey(storeId,d,mid){return storeId+'|'+d+'|'+mid;}
   function parseAssignmentKey(key){var p=String(key).split('|');return {storeId:p[0],d:parseInt(p[1]),mid:p.slice(2).join('|')};}
@@ -113,7 +114,8 @@
             warnings.push(d+'日の特別勤務希望は希望店舗で確定済みの人・日のため未採用です。');
             return;
           }
-          if(!stores[storeId].targets||!stores[storeId].targets[mid]){
+          // 対象外の店舗への特別勤務は、管理者が「希望を優先」を選んだその日だけ採用する。
+          if((!stores[storeId].targets||!stores[storeId].targets[mid])&&!specialOverride(input,mid,d)){
             warnings.push(d+'日の特別勤務希望は希望店舗の対象メンバーではないため未採用です。');
             return;
           }
@@ -396,7 +398,8 @@
           var key=assignmentKey(id,day.d,member.id);
           if(isClosed(stores[id],day.d))errors.push(day.d+'日の店休日に勤務が残っています。');
           if(trial.autoKeys.has(key)){
-            if(!stores[id].targets||!stores[id].targets[member.id])errors.push('対象外店舗への自動配置があります。');
+            var overridden=specialOverride(input,member.id,day.d)&&input.specialPrefs&&input.specialPrefs[member.id]&&input.specialPrefs[member.id][day.d]===id;
+            if((!stores[id].targets||!stores[id].targets[member.id])&&!overridden)errors.push('対象外店舗への自動配置があります。');
             if(prefOf(input,member.id,day.d)==='×')errors.push('希望×への自動配置があります。');
             if(!stores[id].times[member.id+'-'+day.d])errors.push('自動配置の開始時刻がありません。');
           }
@@ -427,7 +430,7 @@
       }else if(!actual&&mode==='unconfirmed'&&scopeSet.has(requested)){
         if(isClosed(stores[requested],d)){
           if(worksOn(stores,d,mid))errors.push('店休日の特別勤務希望が別店舗へ自動移動しています。');
-        }else if(confirmed(input.stores[requested],d,mid)||!input.stores[requested].targets||!input.stores[requested].targets[mid]){
+        }else if(confirmed(input.stores[requested],d,mid)||((!input.stores[requested].targets||!input.stores[requested].targets[mid])&&!specialOverride(input,mid,d))){
           if(isIn(stores,requested,d,mid))errors.push('確定済みまたは対象外の特別勤務希望が自動採用されています。');
         }else if(!isIn(stores,requested,d,mid))errors.push('営業日の特別勤務希望が採用されていません。');
       }
@@ -463,8 +466,17 @@
     return {score:finalScore,candidates:finalCandidates};
   }
 
+  // ×の日の希望開始時刻は再び◯へ戻す時のために保存しておくだけで、作成には使わない。
+  function usableAvail(input){
+    var out={};
+    Object.keys(input.availFrom||{}).forEach(function(mid){
+      var row=input.availFrom[mid]||{};out[mid]={};
+      Object.keys(row).forEach(function(d){if(prefOf(input,mid,d)!=='×')out[mid][d]=row[d];});
+    });
+    var copy={};Object.keys(input).forEach(function(k){copy[k]=input[k];});copy.availFrom=out;return copy;
+  }
   function solve(input,options){
-    options=options||{};
+    options=options||{};input=usableAvail(input);
     var scope=(options.scope&&options.scope.length?options.scope:STORE_IDS).filter(function(id){return STORE_IDS.indexOf(id)>=0;});
     var mode=options.mode==='unconfirmed'?'unconfirmed':'remaining',attempts=Math.max(10,parseInt(options.attempts)||120),random=options.random||Math.random;
     for(var si=0;si<scope.length;si++){
