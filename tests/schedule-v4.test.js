@@ -258,4 +258,48 @@ function copy(value){return JSON.parse(JSON.stringify(value));}
   assert.equal(result.ok,true);assert.deepEqual(data,before);
 }
 
+// 確定した人・日は勤務の有無も確定済み。どちらの作成方式でも新しい勤務を加えない。
+{
+  const days=[1,2,3,4].map(d=>({d,dow:d,holiday:'',we:false}));
+  const members=[member('conf'),member('free'),member('free2')];
+  const all={};members.forEach(m=>{all[m.id]={};days.forEach(x=>all[m.id][x.d]='◯');});
+  ['remaining','unconfirmed'].forEach(mode=>{
+    const data=input({days,members,prefs:all,stores:{midori:store({conf:true,free:true,free2:true},[{time:'18:00',count:2}]),riki:store({},[])}});
+    data.stores.midori.placed={1:{conf:true},3:{free:true}};data.stores.midori.times={'conf-1':'18:00','free-3':'18:00'};
+    data.stores.midori.confM={conf:true};data.stores.midori.confD={3:true};
+    const result=solver.solve(data,{scope:['midori'],mode,attempts:20,random:rng(200)});
+    assert.equal(result.ok,true);
+    days.forEach(x=>assert.equal(assigned(result,'midori',x.d).includes('conf'),x.d===1,mode+' '+x.d+'日'));
+    assert.deepEqual(assigned(result,'midori',3),['free']);
+    assert.equal(result.score[0],1);
+    // 検査側でも、確定済みの人・日への追加を検出する。
+    const tampered=copy(result);tampered.stores.midori.placed[2]=Object.assign({},tampered.stores.midori.placed[2],{conf:true});tampered.stores.midori.times['conf-2']='18:00';
+    const errors=solver.validate(data,{stores:tampered.stores,autoKeys:new Set(['midori|2|conf']),filledTimeKeys:new Set()},['midori'],mode);
+    assert.ok(errors.some(e=>e.indexOf('確定済みの人・日へ勤務が追加')>=0));
+  });
+}
+
+// 取込時に了承した特別勤務が最大日数・連勤を超えていても、作り直し全体を失敗させない。
+{
+  const days=[1,2,3].map(d=>({d,dow:d,holiday:'',we:false}));
+  const members=[member('sp',{maxDays:1,noConsec:2})];
+  const data=input({days,members,prefs:{sp:{1:'◯',2:'◯',3:'◯'}},specialPrefs:{sp:{1:'midori',2:'midori'}},stores:{midori:store({sp:true}),riki:store({},[])}});
+  const result=solver.solve(data,{scope:['midori'],mode:'unconfirmed',attempts:20,random:rng(201)});
+  assert.equal(result.ok,true);
+  assert.deepEqual([1,2,3].map(d=>assigned(result,'midori',d).length),[1,1,0]);
+}
+
+// 確定済み・対象外の特別勤務希望は未採用として警告し、他の作成は続ける。
+{
+  const days=[1,2].map(d=>({d,dow:d,holiday:'',we:false}));
+  const members=[member('c'),member('t'),member('o')];
+  const data=input({days,members,prefs:{c:{1:'◯',2:'◯'},t:{1:'◯',2:'◯'},o:{1:'◯',2:'◯'}},specialPrefs:{c:{1:'midori'},t:{2:'midori'}},stores:{midori:store({c:true,o:true}),riki:store({},[])}});
+  data.stores.midori.confM={c:true};
+  const result=solver.solve(data,{scope:['midori'],mode:'unconfirmed',attempts:20,random:rng(202)});
+  assert.equal(result.ok,true);
+  assert.deepEqual(assigned(result,'midori',1),['o']);
+  assert.deepEqual(assigned(result,'midori',2),['o']);
+  assert.equal(result.warnings.length,2);
+}
+
 console.log('schedule-v4 tests: ok');

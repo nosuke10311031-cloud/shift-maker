@@ -64,7 +64,6 @@
   function confirmed(store,d,mid){return !!((store.confM&&store.confM[mid])||(store.confD&&store.confD[d]));}
   function assignmentKey(storeId,d,mid){return storeId+'|'+d+'|'+mid;}
   function parseAssignmentKey(key){var p=String(key).split('|');return {storeId:p[0],d:parseInt(p[1]),mid:p.slice(2).join('|')};}
-  function own(object,key){return Object.prototype.hasOwnProperty.call(object||{},key);}
   function specialActualStore(input,mid,d){
     var found=STORE_IDS.filter(function(id){return isIn(input.stores,id,d,mid);});
     return found.length===1?found[0]:'';
@@ -109,6 +108,15 @@
             return;
           }
           if(worksOn(stores,d,mid))return;
+          // 確定済みの人・日へは特別勤務希望でも新しい勤務を加えない。対象外へ戻された店舗へも自動で戻さない。
+          if(confirmed(stores[storeId],d,mid)){
+            warnings.push(d+'日の特別勤務希望は希望店舗で確定済みの人・日のため未採用です。');
+            return;
+          }
+          if(!stores[storeId].targets||!stores[storeId].targets[mid]){
+            warnings.push(d+'日の特別勤務希望は希望店舗の対象メンバーではないため未採用です。');
+            return;
+          }
           stores[storeId].placed[d]=Object.assign({},stores[storeId].placed[d]||{},Object.fromEntries([[mid,true]]));
           addedSpecialKeys.add(assignmentKey(storeId,d,mid));
           var member=input.members.find(function(x){return x.id===mid;});
@@ -214,6 +222,8 @@
     var requested=input.specialPrefs&&input.specialPrefs[member.id]&&input.specialPrefs[member.id][day.d];
     if(requested&&requested!==slot.storeId)return null;
     if(!store.targets||!store.targets[member.id])return null;
+    // 確定した人・日は、既存勤務だけでなく勤務の有無も確定済みとして扱う。
+    if(confirmed(store,day.d,member.id))return null;
     if(pref!=='◯'&&!(allowTriangle&&pref==='△'))return null;
     if(member.maxDays>0&&counts[member.id]>=member.maxDays)return null;
     if(wouldExceedRun(stores,input.days,member.id,day.d,member.noConsec||0))return null;
@@ -375,28 +385,9 @@
     return current;
   }
 
-  function protectedBase(input,scope,mode){
-    var stores=clone(input.stores),scopeSet=new Set(scope);
-    STORE_IDS.forEach(function(id){
-      stores[id].placed=stores[id].placed||{};stores[id].times=stores[id].times||{};stores[id].timeSlots=stores[id].timeSlots||{};
-      if(mode!=='unconfirmed'||!scopeSet.has(id))return;
-      var placed={},times={},timeSlots={};
-      input.days.forEach(function(day){input.members.forEach(function(member){
-        var actual=specialActualStore(input,member.id,day.d);
-        var special=actual===id&&input.specialPrefs&&input.specialPrefs[member.id]&&input.specialPrefs[member.id][day.d];
-        if(!isIn(input.stores,id,day.d,member.id)||(!confirmed(input.stores[id],day.d,member.id)&&!special))return;
-        placed[day.d]=Object.assign({},placed[day.d]||{},Object.fromEntries([[member.id,true]]));
-        var key=member.id+'-'+day.d;
-        if(own(input.stores[id].times,key))times[key]=input.stores[id].times[key];
-        if(own(input.stores[id].timeSlots,key))timeSlots[key]=input.stores[id].timeSlots[key];
-      });});
-      stores[id].placed=placed;stores[id].times=times;stores[id].timeSlots=timeSlots;
-    });
-    return stores;
-  }
-
   function validate(input,trial,scope,mode){
-    var errors=[],stores=trial.stores,base=protectedBase(input,scope,mode),scopeSet=new Set(scope);
+    // 最大日数・連勤の比較元は、保持勤務と取込時に利用者が了承した特別勤務を含む作成前の状態。
+    var errors=[],stores=trial.stores,base=prepareBase(input,scope,mode).stores,scopeSet=new Set(scope);
     input.days.forEach(function(day){
       input.members.forEach(function(member){
         var ids=STORE_IDS.filter(function(id){return isIn(stores,id,day.d,member.id);});
@@ -416,8 +407,9 @@
     scope.forEach(function(id){
       input.days.forEach(function(day){input.members.forEach(function(member){
         var key=member.id+'-'+day.d,was=isIn(input.stores,id,day.d,member.id),now=isIn(stores,id,day.d,member.id);
-        if(confirmed(input.stores[id],day.d,member.id)&&was){
-          if(!now||input.stores[id].times[key]!==stores[id].times[key]||input.stores[id].timeSlots[key]!==stores[id].timeSlots[key])errors.push('確定済み勤務または時刻が変更されています。');
+        if(confirmed(input.stores[id],day.d,member.id)){
+          if(was&&(!now||input.stores[id].times[key]!==stores[id].times[key]||input.stores[id].timeSlots[key]!==stores[id].timeSlots[key]))errors.push('確定済み勤務または時刻が変更されています。');
+          if(!was&&now)errors.push('確定済みの人・日へ勤務が追加されています。');
         }
         if(mode==='remaining'&&was){
           if(!now)errors.push('保持対象の勤務が変更されています。');
@@ -435,6 +427,8 @@
       }else if(!actual&&mode==='unconfirmed'&&scopeSet.has(requested)){
         if(isClosed(stores[requested],d)){
           if(worksOn(stores,d,mid))errors.push('店休日の特別勤務希望が別店舗へ自動移動しています。');
+        }else if(confirmed(input.stores[requested],d,mid)||!input.stores[requested].targets||!input.stores[requested].targets[mid]){
+          if(isIn(stores,requested,d,mid))errors.push('確定済みまたは対象外の特別勤務希望が自動採用されています。');
         }else if(!isIn(stores,requested,d,mid))errors.push('営業日の特別勤務希望が採用されていません。');
       }
     });});

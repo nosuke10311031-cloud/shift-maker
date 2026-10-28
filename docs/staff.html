@@ -251,11 +251,13 @@
 
   function cyclePref(d){
     var cur=pref(d);var next=cur==='×'?'◯':cur==='◯'?'△':'×';
-    if(next==='×')delete S.prefs[d];else S.prefs[d]=next;
+    // ×の日は時刻を入力できないため、前に入れた希望開始時刻も一緒に消す。
+    if(next==='×'){delete S.prefs[d];delete S.avail[d];}else S.prefs[d]=next;
     persist();renderCal();renderSpecial();
   }
   function fillAll(v){
     var n=dim(S.year,S.month);S.prefs={};
+    if(v==='×')S.avail={};
     if(v!=='×'){for(var d=1;d<=n;d++)S.prefs[d]=v;}
     persist();renderCal();renderSpecial();
   }
@@ -358,7 +360,8 @@
     if(errors.length){renderSpecial();area.innerHTML='<div class="msg ng">特別勤務希望日とカレンダーの希望が一致していないため、提出コードを作成できません。</div>';return;}
     var must=specialDays();
     var mustStore={};must.forEach(function(d){mustStore[d]=S.mustStore[d];});
-    var obj={t:'shift-pref',name:S.name.trim(),y:S.year,m:S.month,nc:S.nc||0,md:S.md||0,e:!!S.employee,p:S.prefs,a:S.avail,must:must,mustStore:mustStore};
+    var availOut={};Object.keys(S.avail||{}).forEach(function(d){if(pref(parseInt(d))!=='×')availOut[d]=S.avail[d];});
+    var obj={t:'shift-pref',name:S.name.trim(),y:S.year,m:S.month,nc:S.nc||0,md:S.md||0,e:!!S.employee,p:S.prefs,a:availOut,must:must,mustStore:mustStore};
     var code=encodeSubmission(obj);
     area.innerHTML='<div class="qrwrap"><div style="flex:1 1 280px">'
       +'<div class="hint" style="margin-top:0;margin-bottom:6px">このコードをコピーして管理者にLINE等で送ってください：</div>'
