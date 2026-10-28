@@ -1615,6 +1615,7 @@ function AppV4(){
   const [targetOpen,setTargetOpen]=useState(false);
   const [clearDialog,setClearDialog]=useState(null);
   const [specialAsk,setSpecialAsk]=useState(null);
+  const [targetAsk,setTargetAsk]=useState(null);
   const [confOpen,setConfOpen]=useState(false);
   const [dayPop,setDayPop]=useState(null);
   const [memPop,setMemPop]=useState(null);
@@ -1837,23 +1838,25 @@ function AppV4(){
     if(!hasDemand){setTimeMsg({ok:false,text:`${label}の募集人数がすべて0のため、自動作成できません。`});return;}
     if(mode==='unconfirmed'&&!confirm(`確定済み勤務を残し、${label}の未確定部分を作り直します。よろしいですか？`))return;
     if(!window.ShiftV4Solver){setTimeMsg({ok:false,text:'自動作成機能を読み込めませんでした。ページを再読み込みしてください。'});return;}
-    // 特別勤務の希望店舗で対象メンバーから外れている人は、希望と対象店舗のどちらを優先するか管理者に選んでもらう。
-    const asks=mode==='unconfirmed'?nonTargetSpecials(scope):[];
+    // 作り直しのたびに、特別勤務希望日をその回だけ固定するか、普通の◯の日として変更してよいかを選んでもらう。
+    const asks=mode==='unconfirmed'?specialDaysToAsk(scope):[];
     if(asks.length){setSpecialAsk({scope,mode,signatureKey,label,rows:asks.map(x=>({...x,choice:''}))});return;}
     executeJointFill(scope,mode,signatureKey,label,{});
   };
-  const nonTargetSpecials=(scope)=>{
+  const specialDaysToAsk=(scope)=>{
     const out=[];
     s.members.forEach(m=>Object.keys(s.specialPrefs[m.id]||{}).forEach(raw=>{
-      const d=parseInt(raw),id=s.specialPrefs[m.id][raw];
-      if(!scope.includes(id)||s.stores[id].targets[m.id]||isClosedDay(id,d)||isConf(id,d,m.id))return;
-      // 既にどちらかの店舗で勤務している日は、その勤務を特別勤務として保持するため聞かない。
-      if(STORE_IDS.some(x=>isIn(x,d,m.id)))return;
-      out.push({mid:m.id,name:m.name,d,id});
+      const d=parseInt(raw),requested=s.specialPrefs[m.id][raw],placedIn=STORE_IDS.filter(x=>isIn(x,d,m.id));
+      if(placedIn.length>1)return;
+      const id=placedIn[0]||requested;
+      // 作成範囲外・確定済みは動かないため聞かない。未採用で店休日・対象外の日は採用できないため警告だけにする。
+      if(!scope.includes(id)||isConf(id,d,m.id))return;
+      if(!placedIn.length&&(isClosedDay(id,d)||!s.stores[id].targets[m.id]))return;
+      out.push({mid:m.id,name:m.name,d,id,placed:placedIn.length===1});
     }));
     return out.sort((a,b)=>a.d-b.d||a.name.localeCompare(b.name,'ja'));
   };
-  const executeJointFill=(scope,mode,signatureKey,label,specialOverrides)=>{
+  const executeJointFill=(scope,mode,signatureKey,label,specialRelease)=>{
     if(busy)return;
     const solver=window.ShiftV4Solver;
     if(!solver){setTimeMsg({ok:false,text:'自動作成機能を読み込めませんでした。ページを再読み込みしてください。'});return;}
@@ -1862,7 +1865,7 @@ function AppV4(){
     setBusy(`${label}を自動作成しています…`);setTimeMsg(null);
     setTimeout(()=>{
       let result;
-      try{result=solver.solve({year:base.year,month:base.month,days,members:base.members,prefs:base.prefs,availFrom:base.availFrom,specialPrefs:base.specialPrefs,specialOverrides,stores:base.stores},{scope,mode,attempts:180,avoidSignature:previousSignature});}
+      try{result=solver.solve({year:base.year,month:base.month,days,members:base.members,prefs:base.prefs,availFrom:base.availFrom,specialPrefs:base.specialPrefs,specialRelease,stores:base.stores},{scope,mode,attempts:180,avoidSignature:previousSignature});}
       catch(e){result={ok:false,error:`自動作成中にエラーが発生しました（${e&&e.message?e.message:e}）。データは変更していません。`};}
       setBusy('');
       if(!result.ok){setTimeMsg({ok:false,text:result.error});return;}
@@ -1908,8 +1911,15 @@ function AppV4(){
     const choices=Object.fromEntries(mustDays.map(d=>[d,STORE_IDS.includes(submittedStores[d])?submittedStores[d]:defaultStore]));
     const prepared={...obj,name,prefs,a:avail,nc:noConsec,md:maxDays,mustDays,choices};if(missingSubmittedStores.length)setPendingImport(prepared);else commitImport(prepared,choices);
   };
-  const commitImport=(obj,choices)=>{
-    let members=s.members,member=members.find(m=>m.name===obj.name),added=!member,mid=member?member.id:uid();
+  const commitImport=(obj,choices,targetDecisions)=>{
+    const known=s.members.find(m=>m.name===obj.name);
+    // 特別勤務の希望店舗の対象メンバーでない場合は、対象に加えるか特別勤務を受け付けないかを店舗ごとに選んでもらう。
+    const askStores=[...new Set(obj.mustDays.map(d=>choices[d]))].filter(id=>STORE_IDS.includes(id)&&!(known?s.stores[id].targets[known.id]:id==='midori'));
+    if(askStores.length&&!targetDecisions){setPendingImport(null);setTargetAsk({obj,choices,rows:askStores.map(id=>({id,days:obj.mustDays.filter(d=>choices[d]===id),choice:''}))});return;}
+    const declined=obj.mustDays.filter(d=>targetDecisions&&targetDecisions[choices[d]]==='decline');
+    // 受け付けなかった日は特別勤務希望から外し、提出どおりの普通の◯として扱う。
+    if(declined.length)obj={...obj,mustDays:obj.mustDays.filter(d=>!declined.includes(d))};
+    let members=s.members,member=known,added=!member,mid=member?member.id:uid();
     if(member)members=members.map(m=>m.id===mid?{...m,noConsec:Math.max(0,parseInt(obj.nc)||0),maxDays:Math.max(0,parseInt(obj.md)||0),employee:!!obj.e}:m);else members=[...members,{id:mid,name:obj.name,noConsec:Math.max(0,parseInt(obj.nc)||0),maxDays:Math.max(0,parseInt(obj.md)||0),employee:!!obj.e}];
     const warnings=[],closedMust=new Set(),confirmedMust=new Set();
     for(const d of obj.mustDays){const id=choices[d];if(!STORE_IDS.includes(id)){alert('特別勤務希望日の店舗を選択してください。');return;}const other=otherStore(id);if(isIn(other,d,mid)&&isConf(other,d,mid)){alert(`${d}日は${STORE_LABEL[other]}で確定済みのため取り込めません。`);return;}if(isClosedDay(id,d)){closedMust.add(d);continue;}if(isConf(id,d,mid)&&!isIn(id,d,mid)){confirmedMust.add(d);continue;}if(isIn(other,d,mid))warnings.push(`${d}日：${STORE_LABEL[other]}から${STORE_LABEL[id]}へ移動します`);const def=demand(id,days[d-1]),current=s.members.filter(m=>isIn(id,d,m.id)).length;if(def===0)warnings.push(`${d}日：${STORE_LABEL[id]}は募集人数0です`);else if(!isIn(id,d,mid)&&current>=def)warnings.push(`${d}日：${STORE_LABEL[id]}の募集人数を超えます`);}
@@ -1922,7 +1932,7 @@ function AppV4(){
     const specialRow={};obj.mustDays.forEach(d=>{const id=choices[d],other=otherStore(id),otherRow={...(stores[other].placed[d]||{})};if(!isConf(other,d,mid)){delete otherRow[mid];delete stores[other].times[`${mid}-${d}`];delete stores[other].timeSlots[`${mid}-${d}`];}stores[other].placed[d]=otherRow;stores[id].targets[mid]=true;specialRow[d]=id;if(closedMust.has(d)||confirmedMust.has(d))return;stores[id].placed[d]={...(stores[id].placed[d]||{}),[mid]:true};if(obj.e&&!isConf(id,d,mid))stores[id].times[`${mid}-${d}`]='13:00';});
     STORE_IDS.forEach(id=>{if(obj.e)days.forEach(day=>{if(stores[id].placed[day.d]&&stores[id].placed[day.d][mid]&&!isConf(id,day.d,mid))stores[id].times[`${mid}-${day.d}`]='13:00';});});
     setS(prev=>dirty({...prev,members,prefs:{...prev.prefs,[mid]:obj.prefs},availFrom:{...prev.availFrom,[mid]:Object.fromEntries(Object.entries(obj.a||{}).filter(([d])=>obj.prefs[d]==='◯'||obj.prefs[d]==='△'))},specialPrefs:{...prev.specialPrefs,[mid]:specialRow},stores},STORE_IDS));
-    setImportMsg({ok:true,text:`${obj.name}さんの希望を${added?'みどり対象で追加':'上書き'}しました。${closedMust.size?` 店休日と重なる特別勤務希望${closedMust.size}件は希望だけを保存し、未採用にしています。`:''}${confirmedMust.size?` 確定済みの人・日と重なる特別勤務希望${confirmedMust.size}件は希望だけを保存し、未採用にしています。`:''}`});setImportText('');setPendingImport(null);markShareDirty();
+    setImportMsg({ok:true,text:`${obj.name}さんの希望を${added?'みどり対象で追加':'上書き'}しました。${closedMust.size?` 店休日と重なる特別勤務希望${closedMust.size}件は希望だけを保存し、未採用にしています。`:''}${confirmedMust.size?` 確定済みの人・日と重なる特別勤務希望${confirmedMust.size}件は希望だけを保存し、未採用にしています。`:''}${declined.length?` 対象店舗に加えなかった特別勤務希望${declined.length}日は、普通の◯として保存しました。`:''}`});setImportText('');setPendingImport(null);setTargetAsk(null);markShareDirty();
   };
 
   const buildLink=(code)=>{try{const url=new URL(viewerUrl,location.href);url.hash='';url.searchParams.set('shift',code.replace(/-/g,'_'));return url.toString();}catch(e){return '';}};
@@ -2022,7 +2032,8 @@ function AppV4(){
     {targetOpen&&<><div className="tp-ov" onClick={()=>setTargetOpen(false)}></div><div className="target-panel"><h3>{activeTab==='all'?'店舗対象メンバー':STORE_LABEL[activeTab]+'の対象メンバー'}</h3><div className="hint">自動作成と店舗別共有に含める人を選びます。勤務が残っている店舗のチェックは外せません。</div>{activeTab==='all'?<div className="target-list"><div className="target-store-head"><b>メンバー</b><b>みどり</b><b>リキ</b></div>{s.members.map(m=><div className="target-item dual" key={m.id}><span>{m.name}</span>{STORE_IDS.map(id=>{const assigned=days.some(x=>isIn(id,x.d,m.id));return <label key={id} title={assigned?'勤務あり・OFF不可':''}><input type="checkbox" checked={!!s.stores[id].targets[m.id]} onChange={e=>toggleTarget(id,m.id,e.target.checked)}/><span>{assigned?'勤務あり':STORE_LABEL[id]}</span></label>;})}</div>)}</div>:<div className="target-list">{s.members.map(m=>{const assigned=days.some(x=>isIn(activeTab,x.d,m.id));return <label className="target-item" key={m.id}><input type="checkbox" checked={!!s.stores[activeTab].targets[m.id]} onChange={e=>toggleTarget(activeTab,m.id,e.target.checked)}/><span>{m.name}</span>{assigned&&<span className="reason">勤務あり・OFF不可</span>}</label>;})}</div>}<div className="modal-actions"><button className="btn accent" onClick={()=>setTargetOpen(false)}>完了</button></div></div></>}
     {closedDraft&&<><div className="tp-ov" onClick={()=>setClosedDraft(null)}></div><div className="target-panel"><h3>{STORE_LABEL[closedDraft.id]}の店休日</h3><div className="hint">休みにする日を複数選び、「保存」を押してください。祝日とは別の設定です。</div><div className="closed-grid">{WD.map(w=><div className="weekday" key={w}>{w}</div>)}{Array.from({length:new Date(s.year,s.month-1,1).getDay()},(_,i)=><span key={'blank'+i}></span>)}{days.map(day=><label className={'closed-day-choice'+(closedDraft.selected[day.d]?' on':'')} key={day.d}><input type="checkbox" checked={!!closedDraft.selected[day.d]} onChange={()=>toggleClosedDraft(day.d)}/><span>{day.d}</span></label>)}</div><div className="modal-actions"><button className="btn ghost" onClick={()=>setClosedDraft(null)}>キャンセル</button><button className="btn accent" onClick={applyClosedDays}>保存</button></div></div></>}
     {clearDialog&&<><div className="tp-ov" onClick={()=>setClearDialog(null)}></div><div className="target-panel" style={{inset:'auto max(12px,calc((100vw - 520px)/2)) 20vh'}}><h3>特別勤務をどうしますか？</h3><div className="hint">対象となる特別勤務が{clearDialog.count}件あります。特別勤務希望日の情報と選択済み店舗は、どちらを選んでも残ります。</div><div className="modal-actions"><button className="btn ghost" onClick={()=>applyClear(clearDialog.id,clearDialog.mode,true)}>特別勤務を残してクリア</button><button className="btn accent" onClick={()=>applyClear(clearDialog.id,clearDialog.mode,false)}>特別勤務の勤務採用も解除</button><button className="btn ghost" onClick={()=>setClearDialog(null)}>キャンセル</button></div></div></>}
-    {specialAsk&&<><div className="tp-ov" onClick={()=>setSpecialAsk(null)}></div><div className="target-panel" style={{inset:'auto max(12px,calc((100vw - 560px)/2)) 15vh',maxHeight:'75vh'}}><h3>対象外店舗への特別勤務希望</h3><div className="hint">次の特別勤務希望は、希望店舗の対象メンバーから外れています。日ごとにどちらを優先するか選んでください。「希望を優先」はその日だけ勤務に入れ、対象メンバーの設定は変えません。</div><div className="target-list">{specialAsk.rows.map((r,i)=><div className="target-item" key={r.mid+'-'+r.d} style={{flexWrap:'wrap'}}><b>{s.month}月{r.d}日 {r.name}（{STORE_LABEL[r.id]}）</b><label><input type="radio" name={'sa'+i} checked={r.choice==='pref'} onChange={()=>setSpecialAsk(p=>({...p,rows:p.rows.map((x,j)=>j===i?{...x,choice:'pref'}:x)}))}/>希望を優先</label><label><input type="radio" name={'sa'+i} checked={r.choice==='target'} onChange={()=>setSpecialAsk(p=>({...p,rows:p.rows.map((x,j)=>j===i?{...x,choice:'target'}:x)}))}/>対象店舗を優先（入れない）</label></div>)}</div><div className="modal-actions"><button className="btn ghost" onClick={()=>setSpecialAsk(null)}>キャンセル</button><button className="btn accent" disabled={specialAsk.rows.some(r=>!r.choice)} onClick={()=>{const a=specialAsk,overrides={};a.rows.forEach(r=>{if(r.choice==='pref')overrides[r.mid]={...(overrides[r.mid]||{}),[r.d]:true};});setSpecialAsk(null);executeJointFill(a.scope,a.mode,a.signatureKey,a.label,overrides);}}>この内容で自動作成</button></div></div></>}
+    {specialAsk&&<><div className="tp-ov" onClick={()=>setSpecialAsk(null)}></div><div className="target-panel" style={{inset:'auto max(12px,calc((100vw - 560px)/2)) 15vh',maxHeight:'75vh'}}><h3>特別勤務希望日を変更しますか？固定しますか？</h3><div className="hint">「固定」はこの自動作成の間だけ、その人のその日を確定と同じように扱います（保存される確定にはなりません）。「変更」は普通の◯の日として扱い、入れるかどうか・どちらの店舗かを自動作成が決めます。</div><div className="row" style={{gap:6,marginBottom:6}}><button className="btn ghost sm" onClick={()=>setSpecialAsk(p=>({...p,rows:p.rows.map(x=>({...x,choice:'fix'}))}))}>すべて固定</button><button className="btn ghost sm" onClick={()=>setSpecialAsk(p=>({...p,rows:p.rows.map(x=>({...x,choice:'change'}))}))}>すべて変更</button></div><div className="target-list">{specialAsk.rows.map((r,i)=><div className="target-item" key={r.mid+'-'+r.d} style={{flexWrap:'wrap'}}><b>{s.month}月{r.d}日 {r.name}（{STORE_LABEL[r.id]}・{r.placed?'採用中':'未採用'}）</b><label><input type="radio" name={'sa'+i} checked={r.choice==='fix'} onChange={()=>setSpecialAsk(p=>({...p,rows:p.rows.map((x,j)=>j===i?{...x,choice:'fix'}:x)}))}/>固定</label><label><input type="radio" name={'sa'+i} checked={r.choice==='change'} onChange={()=>setSpecialAsk(p=>({...p,rows:p.rows.map((x,j)=>j===i?{...x,choice:'change'}:x)}))}/>変更（普通の◯）</label></div>)}</div><div className="modal-actions"><button className="btn ghost" onClick={()=>setSpecialAsk(null)}>キャンセル</button><button className="btn accent" disabled={specialAsk.rows.some(r=>!r.choice)} onClick={()=>{const a=specialAsk,release={};a.rows.forEach(r=>{if(r.choice==='change')release[r.mid]={...(release[r.mid]||{}),[r.d]:true};});setSpecialAsk(null);executeJointFill(a.scope,a.mode,a.signatureKey,a.label,release);}}>この内容で自動作成</button></div></div></>}
+    {targetAsk&&<><div className="tp-ov" onClick={()=>setTargetAsk(null)}></div><div className="target-panel" style={{inset:'auto max(12px,calc((100vw - 560px)/2)) 15vh',maxHeight:'75vh'}}><h3>{targetAsk.obj.name}さんの特別勤務希望</h3><div className="hint">希望店舗の対象メンバーになっていません。店舗ごとに選んでください。「対象に加える」は店舗の対象メンバー設定を変更します。「受け付けない」場合、その日は普通の◯の希望として扱います。</div><div className="target-list">{targetAsk.rows.map((r,i)=><div className="target-item" key={r.id} style={{flexWrap:'wrap'}}><b>{STORE_LABEL[r.id]}（{r.days.map(d=>`${d}日`).join('・')}）</b><label><input type="radio" name={'ta'+i} checked={r.choice==='add'} onChange={()=>setTargetAsk(p=>({...p,rows:p.rows.map((x,j)=>j===i?{...x,choice:'add'}:x)}))}/>対象に加える</label><label><input type="radio" name={'ta'+i} checked={r.choice==='decline'} onChange={()=>setTargetAsk(p=>({...p,rows:p.rows.map((x,j)=>j===i?{...x,choice:'decline'}:x)}))}/>受け付けない（普通の◯）</label></div>)}</div><div className="modal-actions"><button className="btn ghost" onClick={()=>setTargetAsk(null)}>キャンセル</button><button className="btn accent" disabled={targetAsk.rows.some(r=>!r.choice)} onClick={()=>commitImport(targetAsk.obj,targetAsk.choices,Object.fromEntries(targetAsk.rows.map(r=>[r.id,r.choice])))}>この内容で取り込む</button></div></div></>}
     {pendingImport&&<><div className="tp-ov" onClick={()=>setPendingImport(null)}></div><div className="target-panel"><h3>{pendingImport.name}さんの特別勤務希望</h3><div className="hint">旧形式の提出コードには希望店舗が入っていないため、日ごとに選んでください。新形式では提出者が選んだ店舗をそのまま取り込みます。</div><div className="target-list">{pendingImport.mustDays.map(d=><div className="target-item" key={d}><b>{s.month}月{d}日</b><label><input type="radio" name={'sp'+d} checked={pendingImport.choices[d]==='midori'} onChange={()=>setPendingImport(p=>({...p,choices:{...p.choices,[d]:'midori'}}))}/>みどり</label><label><input type="radio" name={'sp'+d} checked={pendingImport.choices[d]==='riki'} onChange={()=>setPendingImport(p=>({...p,choices:{...p.choices,[d]:'riki'}}))}/>リキ</label></div>)}</div><div className="modal-actions"><button className="btn ghost" onClick={()=>setPendingImport(null)}>キャンセル</button><button className="btn accent" onClick={()=>commitImport(pendingImport,pendingImport.choices)}>この内容で取り込む</button></div></div></>}
     {memPop&&(()=>{const m=s.members.find(x=>x.id===memPop.mid);if(!m)return null;return <><div className="tp-ov" onClick={()=>setMemPop(null)}></div><div className="tp-pop" style={{top:memPop.top,left:memPop.left,width:230,padding:14}}><div className="tp-ttl">{m.name}の設定</div><label className="mp-row">名前<input defaultValue={m.name} onBlur={e=>renameMember(m.id,e.target.value)}/></label><label className="mp-row">社員<input type="checkbox" checked={!!m.employee} onChange={e=>setEmployee(m.id,e.target.checked)}/></label><div className="modal-actions"><button className="btn accent sm" onClick={()=>setMemPop(null)}>閉じる</button></div></div></>;})()}
     {dayPop&&<><div className="tp-ov" onClick={()=>setDayPop(null)}></div><div className="tp-pop" style={{top:dayPop.top,left:dayPop.left,width:190,padding:14}}><div className="tp-ttl">{s.month}月{dayPop.d}日</div><div className="modal-actions"><button className="btn ghost sm" onClick={()=>{setConfD(dayPop.id,dayPop.d,false);setDayPop(null);}}>未確定</button><button className="btn accent sm" onClick={()=>{setConfD(dayPop.id,dayPop.d,true);setDayPop(null);}}>確定</button></div></div></>}

@@ -302,18 +302,30 @@ function copy(value){return JSON.parse(JSON.stringify(value));}
   assert.equal(result.warnings.length,2);
 }
 
-// 管理者が「希望を優先」を選んだ対象外店舗の特別勤務は、その日だけ採用する。
+// 作り直しで「固定」した特別勤務は残し、「変更」した特別勤務は普通の◯の日として扱う。
 {
   const days=[1,2].map(d=>({d,dow:d,holiday:'',we:false}));
-  const members=[member('t'),member('o')];
-  const data=input({days,members,prefs:{t:{1:'◯',2:'◯'},o:{1:'◯',2:'◯'}},specialPrefs:{t:{2:'midori'}},specialOverrides:{t:{2:true}},stores:{midori:store({o:true},[{time:'18:00',count:2}]),riki:store({},[])}});
-  data.specialOverrides={t:{2:true}};
-  const result=solver.solve(data,{scope:['midori'],mode:'unconfirmed',attempts:20,random:rng(203)});
-  assert.equal(result.ok,true);
-  assert.deepEqual(assigned(result,'midori',1),['o']);
-  assert.deepEqual(assigned(result,'midori',2).sort(),['o','t']);
-  assert.equal(result.stores.midori.targets.t,undefined);
-  assert.equal(result.warnings.length,0);
+  const members=[member('fixed'),member('changed')];
+  const make=()=>{
+    const data=input({days,members,prefs:{fixed:{1:'◯'},changed:{1:'◯',2:'◯'}},specialPrefs:{fixed:{1:'midori'},changed:{1:'midori',2:'midori'}},stores:{midori:store({fixed:true,changed:true},[{time:'18:00',count:0}]),riki:store({},[])}});
+    data.stores.midori.placed={1:{fixed:true,changed:true}};data.stores.midori.times={'fixed-1':'18:00','changed-1':'18:00'};
+    return data;
+  };
+  // 募集0人の日なので、特別勤務として残らない限り誰も入らない。
+  const kept=solver.solve(make(),{scope:['midori'],mode:'unconfirmed',attempts:20,random:rng(203)});
+  assert.equal(kept.ok,true);
+  assert.deepEqual(assigned(kept,'midori',1).sort(),['changed','fixed']);
+  assert.deepEqual(assigned(kept,'midori',2),['changed']);
+  const data=make();data.specialRelease={changed:{1:true,2:true}};
+  const released=solver.solve(data,{scope:['midori'],mode:'unconfirmed',attempts:20,random:rng(204)});
+  assert.equal(released.ok,true);
+  assert.deepEqual(assigned(released,'midori',1),['fixed']);
+  assert.deepEqual(assigned(released,'midori',2),[]);
+  assert.equal(released.stores.midori.times['fixed-1'],'18:00');
+  assert.deepEqual(data.specialPrefs.changed,{1:'midori',2:'midori'});
+  // 「残り」の作成では既存勤務を全部残すため、変更の指定は使わない。
+  const remaining=solver.solve(data,{scope:['midori'],mode:'remaining',attempts:20,random:rng(205)});
+  assert.deepEqual(assigned(remaining,'midori',1).sort(),['changed','fixed']);
 }
 
 // ×の日に残した希望開始時刻は、既存勤務の開始時刻補完に使わない。
@@ -321,7 +333,7 @@ function copy(value){return JSON.parse(JSON.stringify(value));}
   const members=[member('x')];
   const data=input({members,prefs:{x:{}},availFrom:{x:{1:'20:00'}},stores:{midori:store({x:true}),riki:store({},[])}});
   data.stores.midori.placed={1:{x:true}};
-  const result=solver.solve(data,{scope:['midori'],mode:'remaining',attempts:20,random:rng(204)});
+  const result=solver.solve(data,{scope:['midori'],mode:'remaining',attempts:20,random:rng(206)});
   assert.equal(result.ok,true);
   assert.equal(result.stores.midori.times['x-1'],'18:00');
   assert.equal(data.availFrom.x[1],'20:00');

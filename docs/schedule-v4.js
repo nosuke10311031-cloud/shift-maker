@@ -61,7 +61,8 @@
     return Math.max(requiredMin,available||requiredMin);
   }
   function prefOf(input,mid,d){return (input.prefs&&input.prefs[mid]&&input.prefs[mid][d])||'×';}
-  function specialOverride(input,mid,d){return !!(input.specialOverrides&&input.specialOverrides[mid]&&input.specialOverrides[mid][d]);}
+  // 確定以外の作り直しで管理者が「変更」を選んだ特別勤務希望日は、普通の◯の日として扱う。
+  function specialReleased(input,mid,d){return !!(input.specialRelease&&input.specialRelease[mid]&&input.specialRelease[mid][d]);}
   function confirmed(store,d,mid){return !!((store.confM&&store.confM[mid])||(store.confD&&store.confD[d]));}
   function assignmentKey(storeId,d,mid){return storeId+'|'+d+'|'+mid;}
   function parseAssignmentKey(key){var p=String(key).split('|');return {storeId:p[0],d:parseInt(p[1]),mid:p.slice(2).join('|')};}
@@ -85,7 +86,7 @@
         input.days.forEach(function(day){
           input.members.forEach(function(member){
             var actual=specialActualStore(input,member.id,day.d);
-            var keep=confirmed(store,day.d,member.id)||(actual===id&&input.specialPrefs&&input.specialPrefs[member.id]&&input.specialPrefs[member.id][day.d]);
+            var keep=confirmed(store,day.d,member.id)||(actual===id&&input.specialPrefs&&input.specialPrefs[member.id]&&input.specialPrefs[member.id][day.d]&&!specialReleased(input,member.id,day.d));
             if(!isIn(stores,id,day.d,member.id)||!keep)return;
             if(!placed[day.d])placed[day.d]={};
             placed[day.d][member.id]=true;
@@ -103,7 +104,7 @@
       Object.keys(input.specialPrefs||{}).forEach(function(mid){
         Object.keys(input.specialPrefs[mid]||{}).forEach(function(rawDay){
           var d=parseInt(rawDay),storeId=input.specialPrefs[mid][rawDay];
-          if(!scopeSet.has(storeId))return;
+          if(!scopeSet.has(storeId)||specialReleased(input,mid,d))return;
           if(isClosed(stores[storeId],d)){
             warnings.push(d+'日の特別勤務希望は希望店舗が店休日のため未採用です。');
             return;
@@ -114,8 +115,7 @@
             warnings.push(d+'日の特別勤務希望は希望店舗で確定済みの人・日のため未採用です。');
             return;
           }
-          // 対象外の店舗への特別勤務は、管理者が「希望を優先」を選んだその日だけ採用する。
-          if((!stores[storeId].targets||!stores[storeId].targets[mid])&&!specialOverride(input,mid,d)){
+          if(!stores[storeId].targets||!stores[storeId].targets[mid]){
             warnings.push(d+'日の特別勤務希望は希望店舗の対象メンバーではないため未採用です。');
             return;
           }
@@ -398,8 +398,7 @@
           var key=assignmentKey(id,day.d,member.id);
           if(isClosed(stores[id],day.d))errors.push(day.d+'日の店休日に勤務が残っています。');
           if(trial.autoKeys.has(key)){
-            var overridden=specialOverride(input,member.id,day.d)&&input.specialPrefs&&input.specialPrefs[member.id]&&input.specialPrefs[member.id][day.d]===id;
-            if((!stores[id].targets||!stores[id].targets[member.id])&&!overridden)errors.push('対象外店舗への自動配置があります。');
+            if(!stores[id].targets||!stores[id].targets[member.id])errors.push('対象外店舗への自動配置があります。');
             if(prefOf(input,member.id,day.d)==='×')errors.push('希望×への自動配置があります。');
             if(!stores[id].times[member.id+'-'+day.d])errors.push('自動配置の開始時刻がありません。');
           }
@@ -423,6 +422,7 @@
     });
     Object.keys(input.specialPrefs||{}).forEach(function(mid){Object.keys(input.specialPrefs[mid]||{}).forEach(function(rawDay){
       var d=parseInt(rawDay),requested=input.specialPrefs[mid][rawDay],actual=specialActualStore(input,mid,d),key=mid+'-'+d;
+      if(mode==='unconfirmed'&&specialReleased(input,mid,d))return;
       if(actual&&scopeSet.has(actual)){
         if(!isIn(stores,actual,d,mid))errors.push('実採用済みの特別勤務が変更されています。');
         if(input.stores[actual].times[key]&&input.stores[actual].times[key]!==stores[actual].times[key])errors.push('実採用済みの特別勤務時刻が変更されています。');
@@ -430,7 +430,7 @@
       }else if(!actual&&mode==='unconfirmed'&&scopeSet.has(requested)){
         if(isClosed(stores[requested],d)){
           if(worksOn(stores,d,mid))errors.push('店休日の特別勤務希望が別店舗へ自動移動しています。');
-        }else if(confirmed(input.stores[requested],d,mid)||((!input.stores[requested].targets||!input.stores[requested].targets[mid])&&!specialOverride(input,mid,d))){
+        }else if(confirmed(input.stores[requested],d,mid)||!input.stores[requested].targets||!input.stores[requested].targets[mid]){
           if(isIn(stores,requested,d,mid))errors.push('確定済みまたは対象外の特別勤務希望が自動採用されています。');
         }else if(!isIn(stores,requested,d,mid))errors.push('営業日の特別勤務希望が採用されていません。');
       }
